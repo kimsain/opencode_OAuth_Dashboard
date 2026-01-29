@@ -100,9 +100,9 @@ const initSegmented = (container, onSelect) => {
   return { updateSlider };
 };
 
-const viewToggle = initSegmented(document.querySelector(".segmented"), (view) => {
+const viewToggle = initSegmented(document.querySelector(".segmented"), async (view) => {
   state.view = view;
-  renderCards();
+  await renderCards();
 });
 
 const setAccountInfo = (accountInfo) => {
@@ -279,7 +279,16 @@ const computeViewData = () => {
   }));
 };
 
-const renderCards = () => {
+const renderCards = async () => {
+  const currentCards = cardsEl.querySelectorAll(".card");
+  if (currentCards.length > 0) {
+    currentCards.forEach((card, i) => {
+      card.classList.add("exiting");
+      card.style.animationDelay = `${i * 30}ms`;
+    });
+    await new Promise((resolve) => setTimeout(resolve, 300));
+  }
+
   const viewData = computeViewData();
   let html = "";
 
@@ -465,7 +474,7 @@ const renderCards = () => {
   cardsEl.innerHTML = html;
 };
 
-const applyPayload = (payload, message) => {
+const applyPayload = async (payload, message) => {
   state.items = payload.items || [];
   state.source = payload.source || "sample";
   state.providerErrors = payload.providerErrors || [];
@@ -478,7 +487,7 @@ const applyPayload = (payload, message) => {
   } else {
     setStatus("", false);
   }
-  renderCards();
+  await renderCards();
   scheduleAutoRefresh();
 };
 
@@ -503,14 +512,14 @@ const loadUsage = async (manual) => {
   const payload = await window.usageApi.fetchUsage();
 
   if (payload.status === "ok") {
-    applyPayload(payload);
+    await applyPayload(payload);
   } else if (payload.fallback) {
     // Preserve providerErrors from top-level payload if available
     const fallbackData = {
       ...payload.fallback,
       providerErrors: payload.providerErrors || []
     };
-    applyPayload(fallbackData, payload.message);
+    await applyPayload(fallbackData, payload.message);
   } else {
     // Error with no fallback - render empty state with errors
     const errorData = {
@@ -518,7 +527,7 @@ const loadUsage = async (manual) => {
       source: "none",
       providerErrors: payload.providerErrors || []
     };
-    applyPayload(errorData, payload.message || "Unable to load usage data");
+    await applyPayload(errorData, payload.message || "Unable to load usage data");
   }
 
   state.loading = false;
@@ -679,7 +688,16 @@ const setValueAtPath = (obj, path, value) => {
   }
 };
 
-const renderEditorList = () => {
+const renderEditorList = async () => {
+  const currentItems = editorListEl.querySelectorAll(".editor-item");
+  if (currentItems.length > 0) {
+    currentItems.forEach((item, i) => {
+      item.classList.add("exiting");
+      item.style.animationDelay = `${i * 20}ms`;
+    });
+    await new Promise((resolve) => setTimeout(resolve, 250));
+  }
+
   const filter = editorState.filter.toLowerCase();
   const filtered = editorState.entries.filter((entry) => {
     if (entry.type !== editorState.activeTab) return false;
@@ -798,7 +816,7 @@ const loadConfig = async () => {
     
     saveConfigBtn.disabled = false;
     setEditorStatus("Loaded successfully", false);
-    renderEditorList();
+    await renderEditorList();
   } catch (err) {
     setEditorStatus("Error: " + err.message);
     if (pathLabelEl) {
@@ -835,7 +853,7 @@ const saveConfig = async () => {
   }
 };
 
-const applyBulkReplace = () => {
+const applyBulkReplace = async () => {
   const sourceModel = bulkSourceSelect.value;
   const targetModel = bulkTargetSelect.value;
   const scope = bulkScopeSelect.value;
@@ -860,12 +878,12 @@ const applyBulkReplace = () => {
   const changed = candidates.length;
   showBulkToast(`총 ${total}개 중 ${changed}개 변경됨`);
   setEditorStatus("", false);
-  renderEditorList();
+  await renderEditorList();
 };
 
-const editorTabs = initSegmented(document.getElementById("editor-tabs"), (tab) => {
+const editorTabs = initSegmented(document.getElementById("editor-tabs"), async (tab) => {
   editorState.activeTab = tab;
-  renderEditorList();
+  await renderEditorList();
 });
 
 if (changePathBtn) {
@@ -880,9 +898,9 @@ loadConfigBtn.addEventListener("click", async () => {
   await loadConfig();
 });
 saveConfigBtn.addEventListener("click", saveConfig);
-editorFilterInput.addEventListener("input", (e) => {
+editorFilterInput.addEventListener("input", async (e) => {
   editorState.filter = e.target.value;
-  renderEditorList();
+  await renderEditorList();
 });
 bulkApplyBtn.addEventListener("click", applyBulkReplace);
 

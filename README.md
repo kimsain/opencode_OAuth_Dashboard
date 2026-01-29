@@ -1,87 +1,75 @@
-# OAuth Usage Dashboard
+# Quota Pulse Dashboard
 
-Quick start (for first-time users)
+<p align="center">
+  <b>A Premium Electron Dashboard for OAuth Usage & Configuration Management</b>
+</p>
 
-1) Install Node.js (LTS) and npm.
-2) Open a terminal in this folder.
-3) Install dependencies:
-   - `npm install`
-4) Start the app:
-   - `npm start`
-5) In the app, click **Connect Codex** or **Connect Antigravity** to authenticate.
+## 🚀 Quick Start / 빠른 시작
 
----
-
-## English
-
-### What this is
-An Electron desktop dashboard that shows quota/usage for OAuth-connected providers.
-It reads local OpenCode credential files and refreshes data every minute (plus manual refresh).
-
-### Features
-- Codex (OpenAI) and Antigravity (Google) support
-- Auto refresh every 60s + manual refresh
-- Model view and category view
-- Sample mode and sample fallback when OAuth is unavailable
-
-### Configuration
-Runtime config is `app.config.json` (strict JSON; no comments).
-Use `app.config.example.json` as a template.
-
-Key keys:
-- `dataMode`: `oauth` | `api` | `sample`
-- `enableSampleFallback`: boolean
-- `refreshIntervalMs`: number
-
-### OAuth connect ports
-- Codex callback: `http://localhost:1455/auth/callback`
-- Antigravity callback: `http://localhost:51121/oauth-callback`
-
-If Codex connect fails, check if OpenCode/Codex CLI is already using port 1455.
-
-### Data flow (high level)
-1) Renderer calls `window.usageApi.fetchUsage()`
-2) Main process returns `{ status, source, fetchedAt, items, refreshIntervalMs, providerErrors?, accountInfo? }`
-3) Renderer shows banners/errors + cards
-
-### Security notes
-- Do not commit `app.config.json` or any credential files.
-- Never log or share tokens, refresh tokens, or auth codes.
+1. **Install Node.js (LTS)** and npm.
+2. **Install dependencies**:
+   ```bash
+   npm install
+   ```
+3. **Start the app**:
+   ```bash
+   npm start
+   ```
+4. **Authenticate**: Click **Connect Codex** or **Connect Antigravity** in the dashboard.
 
 ---
 
-## 한국어
+## 💎 English
 
-### 무엇인가요
-OAuth로 연결된 제공자의 사용량/쿼터를 보여주는 Electron 데스크톱 대시보드입니다.
-로컬 OpenCode 자격 증명 파일을 읽고 1분마다 자동 갱신하며, 수동 갱신도 가능합니다.
+### Overview
+**Quota Pulse** is a high-performance Electron desktop application designed to monitor quota and usage for OAuth-connected providers (Codex/OpenAI, Antigravity/Google). It features a world-class user interface inspired by modern glassmorphic design principles, providing both real-time data visualization and deep configuration management.
+
+### ✨ What's New
+- **Configuration Editor**: Directly manage your `oh-my-opencode.json` within the app.
+  - **Dynamic Loading**: Automatically detects your config path across OS environments.
+  - **Bulk Replace**: Swap models across all agents/categories with a single click.
+  - **Role Descriptions**: Integrated documentation-based descriptions for every agent and category.
+- **Premium Design System**:
+  - **Glassmorphism**: Layered blur effects and translucent materials.
+  - **Paper Texture**: SVG-based noise filtering for a refined, non-digital feel.
+  - **Micro-interactions**: Staggered entry/exit animations and bouncy spring motions.
+
+### Key Features
+- **Real-time Monitoring**: Auto-refresh every 60s with manual override.
+- **Multi-view Support**: Switch between Model-based and Category-based layouts.
+- **Bilingual Interface**: Seamlessly handles English and Korean contexts.
+- **Safe Management**: Atomic writes and automatic backups for configuration safety.
+
+---
+
+## 🇰🇷 한국어
+
+### 개요
+**Quota Pulse**는 OAuth로 연결된 제공자(Codex/OpenAI, Antigravity/Google)의 사용량과 쿼터를 모니터링하기 위한 프리미엄 Electron 데스크톱 앱입니다. 현대적인 글래스모피즘(Glassmorphism) 디자인 원칙을 적용하여, 실시간 데이터 시각화와 정교한 설정 관리를 동시에 제공합니다.
+
+### ✨ 새로운 기능
+- **Configuration Editor**: 앱 내에서 `oh-my-opencode.json`을 직접 편집할 수 있습니다.
+  - **동적 로딩**: OS 환경에 맞춰 설정 파일 경로를 자동으로 탐색합니다.
+  - **일괄 변경 (Bulk Replace)**: 단 한 번의 클릭으로 모든 Agent/Category의 모델을 교체합니다.
+  - **역할 설명**: 각 항목의 역할을 문서 기반 영어 설명으로 즉시 확인 가능합니다.
+- **프리미엄 디자인 시스템**:
+  - **글래스모피즘**: 레이어드 블러 효과와 반투명 재질감을 적용했습니다.
+  - **종이 질감**: SVG 노이즈 필터를 통해 디지털 특유의 매끈함 대신 고급스러운 질감을 더했습니다.
+  - **마이크로 인터랙션**: 순차적 등장/퇴장 애니메이션과 쫀득한 탄성 모션을 구현했습니다.
 
 ### 주요 기능
-- Codex(OpenAI), Antigravity(Google) 지원
-- 60초 자동 갱신 + 수동 갱신
-- 모델/카테고리 보기 전환
-- OAuth 실패 시 샘플 모드 및 샘플 폴백
+- **실시간 모니터링**: 60초 자동 갱신 및 수동 새로고침 지원.
+- **멀티 뷰 지원**: 모델별 뷰와 카테고리별 레이아웃 전환 가능.
+- **이중 언어 지원**: 영어와 한국어 컨텍스트를 깔끔하게 처리합니다.
+- **안전한 관리**: 설정 변경 시 원자적 저장(Atomic Write) 및 자동 백업을 수행합니다.
 
-### 설정
-실행 설정은 `app.config.json` (엄격한 JSON, 주석 불가)입니다.
-`app.config.example.json`을 템플릿으로 사용하세요.
+---
 
-주요 키:
-- `dataMode`: `oauth` | `api` | `sample`
-- `enableSampleFallback`: boolean
-- `refreshIntervalMs`: number
+## 🛠 Technical Details
+- **Stack**: Electron, JavaScript (CommonJS), CSS3 (Variables + Filters).
+- **Security**: Aggressive token redaction; secrets are never logged or exposed via IPC.
+- **Layout**: CSS Grid/Flexbox with responsive breakpoints.
 
-### OAuth 콜백 포트
-- Codex 콜백: `http://localhost:1455/auth/callback`
-- Antigravity 콜백: `http://localhost:51121/oauth-callback`
-
-Codex 연결이 실패하면 1455 포트가 이미 사용 중인지 확인하세요.
-
-### 데이터 흐름 (요약)
-1) Renderer가 `window.usageApi.fetchUsage()` 호출
-2) Main 프로세스가 `{ status, source, fetchedAt, items, refreshIntervalMs, providerErrors?, accountInfo? }` 반환
-3) Renderer가 배너/오류 + 카드 렌더링
-
-### 보안 주의사항
-- `app.config.json`과 자격 증명 파일은 커밋하지 마세요.
-- 토큰/리프레시 토큰/인증 코드를 로그나 공유하지 마세요.
+## 🔒 Security Note
+- **Never commit** `app.config.json` or credential files (`auth.json`, etc.).
+- The app uses `contextIsolation: true` for secure renderer-main communication.
