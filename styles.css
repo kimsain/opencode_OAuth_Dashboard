@@ -27,7 +27,7 @@
   --glass-border: rgba(var(--ink-rgb, 34, 31, 26), 0.08);
   --primary: var(--accent);
   --ink-rgb: 34, 31, 26;
-  --spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --spring: cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 /* Define dark mode variables for use with .dark class */
@@ -622,10 +622,14 @@ body:not(.dark) .segment.active {
   flex-direction: column;
   gap: 14px;
   transition: all 0.5s var(--spring);
-  animation: fadeUp 0.8s var(--spring) both;
-  animation-delay: calc(var(--index) * 60ms);
+  animation: fadeUp 1.2s var(--spring) both;
+  animation-delay: calc(var(--index) * 100ms);
   position: relative;
   overflow: hidden;
+}
+
+.card.exiting {
+  animation: fadeDown 0.6s var(--spring) forwards;
 }
 
 .card:hover {
@@ -756,6 +760,19 @@ body:not(.dark) .segment.active {
   animation: fadeDown 0.4s var(--spring) forwards;
 }
 
+@keyframes fadeUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+    filter: blur(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+    filter: blur(0);
+  }
+}
+
 @keyframes fadeDown {
   from {
     opacity: 1;
@@ -763,7 +780,8 @@ body:not(.dark) .segment.active {
   }
   to {
     opacity: 0;
-    transform: translateY(14px);
+    transform: translateY(20px);
+    filter: blur(4px);
   }
 }
 
@@ -1104,7 +1122,7 @@ body.dark .path-display {
   opacity: 0;
   transform: translateY(-6px);
   pointer-events: none;
-  transition: opacity 0.2s ease, transform 0.2s ease;
+  transition: opacity 0.4s var(--spring), transform 0.6s var(--spring);
 }
 
 .bulk-toast.visible {
@@ -1140,12 +1158,34 @@ body.dark .path-display {
   grid-template-columns: 1fr auto;
   align-items: center;
   gap: 20px;
-  padding: 16px 20px;
+  padding: 16px 20px 16px 24px;
   background: var(--card);
   border-radius: 16px;
   border: 1px solid var(--line);
   transition: transform 0.2s ease, box-shadow 0.2s ease;
+  position: relative;
+  overflow: hidden;
+  animation: fadeUp 1.1s var(--spring) both;
+  animation-delay: calc(var(--index) * 70ms);
 }
+
+.editor-item.exiting {
+  animation: fadeDown 0.5s var(--spring) forwards;
+}
+
+.editor-item::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 4px;
+  height: 100%;
+  background: var(--editor-accent, var(--muted));
+  opacity: 0.6;
+}
+
+.editor-item.agents { --editor-accent: var(--cool); }
+.editor-item.categories { --editor-accent: var(--accent); }
 
 .editor-item:hover {
   transform: translateX(4px);

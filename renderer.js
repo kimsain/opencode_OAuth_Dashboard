@@ -284,9 +284,9 @@ const renderCards = async () => {
   if (currentCards.length > 0) {
     currentCards.forEach((card, i) => {
       card.classList.add("exiting");
-      card.style.animationDelay = `${i * 30}ms`;
+      card.style.animationDelay = `${i * 40}ms`;
     });
-    await new Promise((resolve) => setTimeout(resolve, 300));
+    await new Promise((resolve) => setTimeout(resolve, 400));
   }
 
   const viewData = computeViewData();
@@ -695,7 +695,7 @@ const renderEditorList = async () => {
       item.classList.add("exiting");
       item.style.animationDelay = `${i * 20}ms`;
     });
-    await new Promise((resolve) => setTimeout(resolve, 250));
+    await new Promise((resolve) => setTimeout(resolve, 300));
   }
 
   const filter = editorState.filter.toLowerCase();
@@ -716,7 +716,7 @@ const renderEditorList = async () => {
   }
 
   editorListEl.innerHTML = filtered
-    .map((entry) => {
+    .map((entry, index) => {
       const isReadOnly = !entry.hasModel || entry.invalid;
       const isUnsupported = entry.hasModel && !editorState.allowedModels.includes(entry.model || "");
       const metaParts = [];
@@ -741,12 +741,8 @@ const renderEditorList = async () => {
         optionsHtml = `<option value="${entry.model || ""}" selected disabled>${label}</option>` + optionsHtml;
       }
 
-      if (isReadOnly) {
-        optionsHtml = `<option value="" selected disabled>model 없음</option>`;
-      }
-
       return `
-      <div class="editor-item">
+      <div class="editor-item ${entry.type}" style="--index:${index}">
         <div class="item-info">
           <div class="item-name">${escapeHtml(entry.name)}</div>
           ${metaLine ? `<div class="item-role">${escapeHtml(metaLine)}</div>` : ""}
@@ -760,15 +756,6 @@ const renderEditorList = async () => {
     `;
     })
     .join("");
-
-  editorListEl.querySelectorAll(".item-model-select").forEach((select) => {
-    select.addEventListener("change", (e) => {
-      const id = e.target.dataset.id;
-      const type = e.target.dataset.type;
-      const newModel = e.target.value;
-      updateModel(id, type, newModel);
-    });
-  });
 };
 
 const updateModel = (id, type, newModel) => {
