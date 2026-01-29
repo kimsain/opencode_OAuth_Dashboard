@@ -81,6 +81,96 @@
       </section>
 
       <main id="cards" class="cards"></main>
+
+      <section id="editor-section" class="editor-container">
+        <header class="editor-header">
+          <div class="editor-title">
+            <h2>Configuration Editor</h2>
+            <p class="editor-subtitle">Edit models for agents and categories in oh-my-opencode.json</p>
+          </div>
+          <div class="editor-path-row" id="path-container">
+            <div id="path-display" class="path-display">
+              <span id="path-label" class="path-label">Detecting configuration...</span>
+              <button id="change-path-btn" class="icon-btn secondary" title="Change Path" aria-label="Change Path">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M12 20h9"></path>
+                  <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path>
+                </svg>
+              </button>
+            </div>
+            <div id="path-edit" class="path-edit hidden">
+              <input type="text" id="config-path" placeholder="Path to oh-my-opencode.json" spellcheck="false" />
+              <button id="load-config-btn" class="secondary-btn">Load</button>
+              <button id="cancel-path-btn" class="secondary-btn">Cancel</button>
+            </div>
+            <button id="save-config-btn" class="icon-btn primary" disabled title="Save Changes" aria-label="Save Changes">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path>
+                <polyline points="17 21 17 13 7 13 7 21"></polyline>
+                <polyline points="7 3 7 8 15 8"></polyline>
+              </svg>
+            </button>
+          </div>
+        </header>
+
+        <div class="editor-toolbar">
+          <div class="editor-group">
+            <div class="segmented" role="tablist" id="editor-tabs">
+              <div class="selection-slider"></div>
+              <button data-tab="agents" class="segment active" role="tab" aria-selected="true">Agents</button>
+              <button data-tab="categories" class="segment" role="tab" aria-selected="false">Categories</button>
+            </div>
+          </div>
+            
+          <div class="bulk-replace-box">
+            <div class="bulk-row">
+              <div class="bulk-field">
+                <label class="bulk-label" for="bulk-source-model">Source model</label>
+                <select id="bulk-source-model">
+                  <option value="" disabled selected>Source Model...</option>
+                </select>
+              </div>
+              <span class="bulk-arrow">→</span>
+              <div class="bulk-field">
+                <label class="bulk-label" for="bulk-target-model">Target model</label>
+                <select id="bulk-target-model">
+                  <option value="" disabled selected>Target Model...</option>
+                </select>
+              </div>
+              <div class="bulk-field">
+                <label class="bulk-label" for="bulk-scope">Scope</label>
+                <select id="bulk-scope">
+                  <option value="both">Both</option>
+                  <option value="agents">Agents Only</option>
+                  <option value="categories">Categories Only</option>
+                </select>
+              </div>
+              <button id="bulk-apply-btn" class="icon-btn bulk-apply-btn" aria-label="Apply bulk replace" title="Apply bulk replace">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M5 7h11"></path>
+                  <polyline points="13 4 16 7 13 10"></polyline>
+                  <path d="M19 17H8"></path>
+                  <polyline points="11 14 8 17 11 20"></polyline>
+                </svg>
+              </button>
+            </div>
+          </div>
+
+          <div class="filter-box">
+            <input type="text" id="editor-filter" placeholder="Filter by name..." />
+          </div>
+        </div>
+
+        <div id="editor-status" class="status"></div>
+        <div id="bulk-toast" class="bulk-toast" role="status" aria-live="polite"></div>
+
+        <div id="editor-list" class="editor-list">
+          <div class="empty-state editor-empty">
+            <h3>Configuration not loaded</h3>
+            <p>Load a configuration file to start editing.</p>
+          </div>
+        </div>
+      </section>
     </div>
 
     <script src="renderer.js"></script>

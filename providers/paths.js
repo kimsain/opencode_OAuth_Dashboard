@@ -85,7 +85,26 @@ const resolveAntigravityAccountsPath = () => {
   return candidates.find((candidate) => fs.existsSync(candidate)) || null;
 };
 
+const resolveOhMyOpencodePath = () => {
+  const candidates = [];
+  const configDir = resolveOpencodeConfigDir();
+  candidates.push(path.join(configDir, "oh-my-opencode.json"));
+
+  if (isWindows) {
+    const windowsDir = resolveWindowsAppDataDir();
+    if (windowsDir) {
+      candidates.push(path.join(windowsDir, "oh-my-opencode.json"));
+    }
+  }
+
+  const dataDir = resolveOpencodeDataDir();
+  candidates.push(path.join(dataDir, "oh-my-opencode.json"));
+
+  return candidates.find((candidate) => fs.existsSync(candidate)) || candidates[0];
+};
+
 module.exports = {
   resolveAuthPath,
-  resolveAntigravityAccountsPath
+  resolveAntigravityAccountsPath,
+  resolveOhMyOpencodePath
 };

@@ -7,8 +7,6 @@ const cardsEl = document.getElementById("cards");
 const statusEl = document.getElementById("status-message");
 const lastUpdatedEl = document.getElementById("last-updated");
 const nextRefreshEl = document.getElementById("next-refresh");
-const segments = document.querySelectorAll(".segment");
-const slider = document.querySelector(".selection-slider");
 const themeToggleBtn = document.getElementById("theme-toggle");
 
 const state = {
@@ -24,22 +22,88 @@ const state = {
   loading: false
 };
 
+const editorState = {
+  path: "",
+  data: null,
+  indent: 2,
+  activeTab: "agents",
+  filter: "",
+  entries: [],
+  allowedModels: [
+    "opencode/gpt-5-nano",
+    "opencode/big-pickle",
+    "openai/gpt-5.2-codex",
+    "openai/gpt-5.2",
+    "openai/gpt-5.1-codex-mini",
+    "google/antigravity-gemini-3-pro",
+    "google/antigravity-gemini-3-flash"
+  ]
+};
+
+const agentRoleMap = {
+  sisyphus: "Default orchestrator for planning, delegation, and execution.",
+  atlas: "Plan executor that delegates to specialists instead of doing everything directly.",
+  oracle: "Read-only consultant for architecture, reviews, and debugging.",
+  librarian: "External research specialist for docs and OSS examples.",
+  explore: "Fast codebase exploration and contextual search agent.",
+  "multimodal-looker": "Visual analysis for PDFs, images, and diagrams.",
+  prometheus: "Strategic planner that builds detailed execution plans.",
+  metis: "Pre-planning consultant for intent and ambiguity checks.",
+  momus: "Plan reviewer for clarity, completeness, and verification.",
+  "sisyphus-junior": "Dedicated executor focused on completing assigned work without re-delegation."
+};
+
+const categoryRoleMap = {
+  "visual-engineering": "Frontend and UI/UX implementation and styling.",
+  ultrabrain: "Deep reasoning for complex architecture decisions.",
+  artistry: "Highly creative and artistic tasks.",
+  quick: "Trivial fixes and small single-file changes.",
+  "unspecified-low": "Low-effort tasks without a clear category.",
+  "unspecified-high": "High-effort tasks without a clear category.",
+  writing: "Documentation and technical writing tasks."
+};
+
 const connectState = {
   codexConnecting: false,
   antigravityConnecting: false
 };
 
-const updateSlider = () => {
-  if (!slider || segments.length === 0) return;
-  const activeSegment = document.querySelector(".segment.active");
-  if (activeSegment) {
-    const index = Array.from(segments).indexOf(activeSegment);
-    // Use the actual width of the segment to ensure pixel-perfect sync
-    const width = activeSegment.getBoundingClientRect().width;
-    slider.style.width = `${width}px`;
-    slider.style.transform = `translateX(${index * width}px)`;
-  }
+const initSegmented = (container, onSelect) => {
+  const segments = container.querySelectorAll(".segment");
+  const slider = container.querySelector(".selection-slider");
+
+  const updateSlider = () => {
+    const activeSegment = container.querySelector(".segment.active");
+    if (activeSegment && slider) {
+      const index = Array.from(segments).indexOf(activeSegment);
+      const width = activeSegment.getBoundingClientRect().width;
+      slider.style.width = `${width}px`;
+      slider.style.transform = `translateX(${index * width}px)`;
+    }
+  };
+
+  segments.forEach((segment) => {
+    segment.addEventListener("click", () => {
+      segments.forEach((btn) => {
+        btn.classList.remove("active");
+        btn.setAttribute("aria-selected", "false");
+      });
+      segment.classList.add("active");
+      segment.setAttribute("aria-selected", "true");
+      updateSlider();
+      if (onSelect) onSelect(segment.dataset.view || segment.dataset.tab);
+    });
+  });
+
+  window.addEventListener("resize", updateSlider);
+  setTimeout(updateSlider, 100);
+  return { updateSlider };
 };
+
+const viewToggle = initSegmented(document.querySelector(".segmented"), (view) => {
+  state.view = view;
+  renderCards();
+});
 
 const setAccountInfo = (accountInfo) => {
   if (codexAccountEl) {
@@ -116,6 +180,7 @@ const scheduleAutoRefresh = () => {
   state.nextRefreshAt = Date.now() + state.refreshIntervalMs;
   state.refreshTimer = setInterval(() => {
     loadUsage(false);
+loadConfig();
   }, state.refreshIntervalMs);
   state.countdownTimer = setInterval(updateTimers, 1000);
   updateTimers();
@@ -430,8 +495,9 @@ const loadUsage = async (manual) => {
   
   if (manual) {
     refreshBtn.classList.add("spinning");
-    // Add shimmer class to all existing cards during manual refresh
-    document.querySelectorAll('.card').forEach(card => card.classList.add('refreshing'));
+    document.querySelectorAll(".card").forEach((card) => {
+      card.classList.add("refreshing");
+    });
   }
 
   const payload = await window.usageApi.fetchUsage();
@@ -520,6 +586,321 @@ const connectAntigravity = async () => {
   }
 };
 
+const configPathInput = document.getElementById("config-path");
+const loadConfigBtn = document.getElementById("load-config-btn");
+const saveConfigBtn = document.getElementById("save-config-btn");
+const changePathBtn = document.getElementById("change-path-btn");
+const cancelPathBtn = document.getElementById("cancel-path-btn");
+const pathDisplayEl = document.getElementById("path-display");
+const pathEditEl = document.getElementById("path-edit");
+const pathLabelEl = document.getElementById("path-label");
+const editorListEl = document.getElementById("editor-list");
+const editorStatusEl = document.getElementById("editor-status");
+const editorFilterInput = document.getElementById("editor-filter");
+const bulkSourceSelect = document.getElementById("bulk-source-model");
+const bulkTargetSelect = document.getElementById("bulk-target-model");
+const bulkScopeSelect = document.getElementById("bulk-scope");
+const bulkApplyBtn = document.getElementById("bulk-apply-btn");
+const bulkToastEl = document.getElementById("bulk-toast");
+let bulkToastTimer = null;
+
+const setEditorStatus = (message, isError = true) => {
+  editorStatusEl.textContent = message || "";
+  editorStatusEl.style.color = isError ? "var(--warn)" : "var(--success)";
+};
+
+const togglePathEdit = (showEdit) => {
+  if (showEdit) {
+    pathDisplayEl.classList.add("hidden");
+    pathEditEl.classList.remove("hidden");
+    configPathInput.focus();
+  } else {
+    pathEditEl.classList.add("hidden");
+    pathDisplayEl.classList.remove("hidden");
+  }
+};
+
+const showBulkToast = (message) => {
+  if (!bulkToastEl) return;
+  bulkToastEl.textContent = message;
+  bulkToastEl.classList.add("visible");
+  if (bulkToastTimer) {
+    clearTimeout(bulkToastTimer);
+  }
+  bulkToastTimer = setTimeout(() => {
+    bulkToastEl.classList.remove("visible");
+  }, 2200);
+};
+
+const buildEntries = (entries) => {
+  const list = [];
+  if (entries?.agents) {
+    entries.agents.forEach((entry) => {
+      list.push({
+        type: "agents",
+        id: entry.key,
+        name: entry.label,
+        model: entry.model,
+        hasModel: entry.hasModel,
+        invalid: entry.invalid,
+        path: entry.path,
+        role: agentRoleMap[String(entry.key).toLowerCase()] || null
+      });
+    });
+  }
+  if (entries?.categories) {
+    entries.categories.forEach((entry) => {
+      list.push({
+        type: "categories",
+        id: entry.key,
+        name: entry.label,
+        model: entry.model,
+        hasModel: entry.hasModel,
+        invalid: entry.invalid,
+        path: entry.path,
+        role: categoryRoleMap[String(entry.key).toLowerCase()] || null
+      });
+    });
+  }
+  return list;
+};
+
+const setValueAtPath = (obj, path, value) => {
+  if (!obj || !Array.isArray(path)) return;
+  let cursor = obj;
+  for (let i = 0; i < path.length - 1; i++) {
+    const key = path[i];
+    if (cursor == null) return;
+    cursor = cursor[key];
+  }
+  const lastKey = path[path.length - 1];
+  if (cursor != null) {
+    cursor[lastKey] = value;
+  }
+};
+
+const renderEditorList = () => {
+  const filter = editorState.filter.toLowerCase();
+  const filtered = editorState.entries.filter((entry) => {
+    if (entry.type !== editorState.activeTab) return false;
+    if (filter && !entry.name.toLowerCase().includes(filter)) return false;
+    return true;
+  });
+
+  if (filtered.length === 0) {
+    editorListEl.innerHTML = `
+      <div class="empty-state editor-empty">
+        <h3>${editorState.data ? "No matches" : "Configuration not loaded"}</h3>
+        <p>${editorState.data ? "Try a different filter." : "Load a configuration file to start editing."}</p>
+      </div>
+    `;
+    return;
+  }
+
+  editorListEl.innerHTML = filtered
+    .map((entry) => {
+      const isReadOnly = !entry.hasModel || entry.invalid;
+      const isUnsupported = entry.hasModel && !editorState.allowedModels.includes(entry.model || "");
+      const metaParts = [];
+      if (entry.role) {
+        metaParts.push(entry.role);
+      } else if (entry.id && entry.id !== entry.name) {
+        metaParts.push(entry.id);
+      }
+      if (entry.invalid) {
+        metaParts.push("Unsupported structure");
+      }
+      const metaLine = metaParts.length ? metaParts.join(" · ") : "";
+
+      let optionsHtml = editorState.allowedModels
+        .map(
+          (m) => `<option value="${m}" ${m === entry.model ? "selected" : ""}>${m}</option>`
+        )
+        .join("");
+
+      if (isUnsupported) {
+        const label = entry.model ? `Unsupported (${entry.model})` : "Unsupported model";
+        optionsHtml = `<option value="${entry.model || ""}" selected disabled>${label}</option>` + optionsHtml;
+      }
+
+      if (isReadOnly) {
+        optionsHtml = `<option value="" selected disabled>model 없음</option>`;
+      }
+
+      return `
+      <div class="editor-item">
+        <div class="item-info">
+          <div class="item-name">${escapeHtml(entry.name)}</div>
+          ${metaLine ? `<div class="item-role">${escapeHtml(metaLine)}</div>` : ""}
+        </div>
+        <div class="item-select-wrapper">
+          <select class="item-model-select" data-id="${entry.id}" data-type="${entry.type}" ${isReadOnly ? "disabled" : ""}>
+            ${optionsHtml}
+          </select>
+        </div>
+      </div>
+    `;
+    })
+    .join("");
+
+  editorListEl.querySelectorAll(".item-model-select").forEach((select) => {
+    select.addEventListener("change", (e) => {
+      const id = e.target.dataset.id;
+      const type = e.target.dataset.type;
+      const newModel = e.target.value;
+      updateModel(id, type, newModel);
+    });
+  });
+};
+
+const updateModel = (id, type, newModel) => {
+  if (!editorState.data) return;
+
+  const entry = editorState.entries.find((e) => e.id === id && e.type === type);
+  if (entry) {
+    entry.model = newModel;
+    setValueAtPath(editorState.data, entry.path, newModel);
+  }
+};
+
+const loadConfig = async () => {
+  const path = configPathInput.value.trim();
+  loadConfigBtn.disabled = true;
+  setEditorStatus("Loading...", false);
+
+  try {
+    const res = await window.usageApi.loadOhMyOpencode(path || "");
+    if (res.status !== "ok") {
+      setEditorStatus(res.message || "Failed to load config");
+      if (pathLabelEl && !pathEditEl.classList.contains("hidden")) {
+        // Stay in edit mode if manual load failed
+      } else if (pathLabelEl) {
+        pathLabelEl.textContent = "Configuration not found (auto-detect failed)";
+      }
+      return;
+    }
+
+    editorState.path = res.path;
+    editorState.data = res.data;
+    editorState.indent = res.indent || 2;
+    editorState.entries = buildEntries(res.entries);
+    if (configPathInput) {
+      configPathInput.value = res.path || path;
+    }
+    if (pathLabelEl) {
+      pathLabelEl.textContent = res.path || "Loaded from default path";
+      pathLabelEl.title = res.path || "";
+    }
+    if (bulkToastEl) {
+      bulkToastEl.textContent = "";
+      bulkToastEl.classList.remove("visible");
+    }
+    
+    saveConfigBtn.disabled = false;
+    setEditorStatus("Loaded successfully", false);
+    renderEditorList();
+  } catch (err) {
+    setEditorStatus("Error: " + err.message);
+    if (pathLabelEl) {
+      pathLabelEl.textContent = "Load failed. Click Change to edit path.";
+    }
+  } finally {
+    loadConfigBtn.disabled = false;
+  }
+};
+
+const saveConfig = async () => {
+  if (!editorState.data || !editorState.path) return;
+
+  saveConfigBtn.disabled = true;
+  setEditorStatus("Saving...", false);
+
+  try {
+    const res = await window.usageApi.saveOhMyOpencode({
+      path: editorState.path,
+      data: editorState.data,
+      indent: editorState.indent
+    });
+
+    if (res.status !== "ok") {
+      setEditorStatus(res.message || "Failed to save config");
+      return;
+    }
+
+    setEditorStatus(`Saved successfully${res.backupPath ? " (Backup created)" : ""}`, false);
+  } catch (err) {
+    setEditorStatus("Error: " + err.message);
+  } finally {
+    saveConfigBtn.disabled = false;
+  }
+};
+
+const applyBulkReplace = () => {
+  const sourceModel = bulkSourceSelect.value;
+  const targetModel = bulkTargetSelect.value;
+  const scope = bulkScopeSelect.value;
+  if (!sourceModel || !targetModel || !editorState.data) return;
+  if (sourceModel === targetModel) {
+    setEditorStatus("Source and target models are the same", true);
+    return;
+  }
+
+  const candidates = editorState.entries.filter((entry) => {
+    if (scope !== "both" && entry.type !== scope) return false;
+    if (!entry.hasModel || entry.invalid) return false;
+    return entry.model === sourceModel;
+  });
+
+  candidates.forEach((entry) => {
+    entry.model = targetModel;
+    setValueAtPath(editorState.data, entry.path, targetModel);
+  });
+
+  const total = candidates.length;
+  const changed = candidates.length;
+  showBulkToast(`총 ${total}개 중 ${changed}개 변경됨`);
+  setEditorStatus("", false);
+  renderEditorList();
+};
+
+const editorTabs = initSegmented(document.getElementById("editor-tabs"), (tab) => {
+  editorState.activeTab = tab;
+  renderEditorList();
+});
+
+if (changePathBtn) {
+  changePathBtn.addEventListener("click", () => togglePathEdit(true));
+}
+if (cancelPathBtn) {
+  cancelPathBtn.addEventListener("click", () => togglePathEdit(false));
+}
+
+loadConfigBtn.addEventListener("click", async () => {
+  togglePathEdit(false);
+  await loadConfig();
+});
+saveConfigBtn.addEventListener("click", saveConfig);
+editorFilterInput.addEventListener("input", (e) => {
+  editorState.filter = e.target.value;
+  renderEditorList();
+});
+bulkApplyBtn.addEventListener("click", applyBulkReplace);
+
+editorState.allowedModels.forEach((m) => {
+  const sourceOpt = document.createElement("option");
+  sourceOpt.value = m;
+  sourceOpt.textContent = m;
+  bulkSourceSelect.appendChild(sourceOpt);
+
+  const targetOpt = document.createElement("option");
+  targetOpt.value = m;
+  targetOpt.textContent = m;
+  bulkTargetSelect.appendChild(targetOpt);
+});
+
+// Auto load on start
+setTimeout(loadConfig, 500);
+
 // Theme management
 const initTheme = () => {
   const savedTheme = localStorage.getItem("theme");
@@ -558,20 +939,6 @@ if (themeToggleBtn) {
 
 initTheme();
 
-segments.forEach((segment) => {
-  segment.addEventListener("click", () => {
-    segments.forEach((button) => {
-      button.classList.remove("active");
-      button.setAttribute("aria-selected", "false");
-    });
-    segment.classList.add("active");
-    segment.setAttribute("aria-selected", "true");
-    state.view = segment.dataset.view;
-    updateSlider();
-    renderCards();
-  });
-});
-
 refreshBtn.addEventListener("click", () => {
   state.nextRefreshAt = Date.now() + state.refreshIntervalMs;
   loadUsage(true);
@@ -590,7 +957,8 @@ if (connectCodexBtn) {
 }
 
 // Ensure slider is in right position on load
-window.addEventListener("resize", updateSlider);
-setTimeout(updateSlider, 100);
+window.addEventListener("resize", viewToggle.updateSlider);
+setTimeout(viewToggle.updateSlider, 100);
 
 loadUsage(false);
+loadConfig();

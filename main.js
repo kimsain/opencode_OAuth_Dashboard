@@ -1,5 +1,6 @@
 const { app, BrowserWindow, ipcMain, shell } = require("electron");
 const path = require("path");
+const crypto = require("crypto");
 const fs = require("fs/promises");
 
 const {
@@ -11,6 +12,17 @@ const { fetchAntigravityItems } = require("./providers/antigravity");
 const { fetchCodexUsage, mapCodex } = require("./providers/codex");
 const { connectAntigravity } = require("./providers/antigravity_connect");
 const { connectCodex } = require("./providers/codex_connect");
+const { resolveOhMyOpencodePath } = require("./providers/paths");
+
+const ALLOWED_MODELS = new Set([
+  "opencode/gpt-5-nano",
+  "opencode/big-pickle",
+  "openai/gpt-5.2-codex",
+  "openai/gpt-5.2",
+  "openai/gpt-5.1-codex-mini",
+  "google/antigravity-gemini-3-pro",
+  "google/antigravity-gemini-3-flash"
+]);
 
 const refreshDefaults = {
   intervalMs: 60_000,
@@ -27,6 +39,98 @@ const getRootDir = () => {
 const safeReadJson = async (filePath) => {
   const raw = await fs.readFile(filePath, "utf8");
   return JSON.parse(raw);
+};
+
+const detectIndent = (raw) => {
+  const match = raw.match(/\n([\t ]+)\S/);
+  if (!match) return 2;
+  if (match[1].includes("\t")) return "\t";
+  return match[1].length || 2;
+};
+
+const readJsonWithIndent = async (filePath) => {
+  const raw = await fs.readFile(filePath, "utf8");
+  const indent = detectIndent(raw);
+  return { data: JSON.parse(raw), indent };
+};
+
+const extractModelEntries = (sectionName, sectionValue) => {
+  const entries = [];
+  if (Array.isArray(sectionValue)) {
+    sectionValue.forEach((value, index) => {
+      const isObject = value && typeof value === "object";
+      const model = isObject ? value.model : undefined;
+      const hasModel = typeof model === "string";
+      const label =
+        (isObject && (value.name || value.id)) || `${sectionName}[${index}]`;
+      entries.push({
+        key: String(index),
+        label: String(label),
+        model: hasModel ? model : null,
+        hasModel,
+        path: [sectionName, index, "model"],
+        invalid: !isObject
+      });
+    });
+  } else if (sectionValue && typeof sectionValue === "object") {
+    Object.entries(sectionValue).forEach(([key, value]) => {
+      const isObject = value && typeof value === "object";
+      const model = isObject ? value.model : undefined;
+      const hasModel = typeof model === "string";
+      entries.push({
+        key,
+        label: String(key),
+        model: hasModel ? model : null,
+        hasModel,
+        path: [sectionName, key, "model"],
+        invalid: !isObject
+      });
+    });
+  }
+  return entries;
+};
+
+const collectInvalidModels = (data) => {
+  const invalid = [];
+  const sections = [
+    { name: "agents", value: data?.agents },
+    { name: "categories", value: data?.categories }
+  ];
+  sections.forEach((section) => {
+    const entries = extractModelEntries(section.name, section.value);
+    entries.forEach((entry) => {
+      if (!entry.hasModel) return;
+      if (!ALLOWED_MODELS.has(entry.model)) {
+        invalid.push({
+          section: section.name,
+          label: entry.label,
+          model: entry.model
+        });
+      }
+    });
+  });
+  return invalid;
+};
+
+const writeJsonAtomicWithBackup = async (filePath, value, indent) => {
+  await fs.mkdir(path.dirname(filePath), { recursive: true });
+  let backupPath = null;
+  try {
+    await fs.access(filePath);
+    const stamp = new Date().toISOString().replace(/[:.]/g, "-");
+    backupPath = `${filePath}.${stamp}.bak`;
+    await fs.copyFile(filePath, backupPath);
+  } catch (error) {
+    if (error?.code !== "ENOENT") {
+      throw error;
+    }
+  }
+
+  const tmp = `${filePath}.${crypto.randomBytes(6).toString("hex")}.tmp`;
+  const payload = JSON.stringify(value, null, indent);
+  await fs.writeFile(tmp, payload, "utf8");
+  await fs.rename(tmp, filePath);
+  return backupPath;
 };
 
 const normalizeItems = (items) => {
@@ -356,6 +460,103 @@ app.on("window-all-closed", () => {
 });
 
 ipcMain.handle("usage:fetch", () => resolveUsagePayload());
+
+ipcMain.handle("ohmyopencode:load", async (event, payload) => {
+  const requestedPath = typeof payload?.path === "string" ? payload.path.trim() : "";
+  const resolvedPath = requestedPath || resolveOhMyOpencodePath();
+  try {
+    const { data, indent } = await readJsonWithIndent(resolvedPath);
+    const entries = {
+      agents: extractModelEntries("agents", data?.agents),
+      categories: extractModelEntries("categories", data?.categories)
+    };
+    return {
+      status: "ok",
+      path: resolvedPath,
+      data,
+      indent,
+      entries
+    };
+  } catch (error) {
+    if (error instanceof SyntaxError) {
+      return {
+        status: "error",
+        code: "parse_error",
+        path: resolvedPath,
+        message: "JSON parse failed. Remove comments and fix syntax.",
+        detail: error.message
+      };
+    }
+    if (error?.code === "ENOENT") {
+      return {
+        status: "error",
+        code: "not_found",
+        path: resolvedPath,
+        message: "File not found. Check the path or create oh-my-opencode.json.",
+        detail: resolvedPath
+      };
+    }
+    if (error?.code === "EACCES") {
+      return {
+        status: "error",
+        code: "permission_denied",
+        path: resolvedPath,
+        message: "Permission denied. Check file permissions.",
+        detail: error.message
+      };
+    }
+    return {
+      status: "error",
+      code: "read_error",
+      path: resolvedPath,
+      message: error?.message || "Failed to load config",
+      detail: error?.stack || ""
+    };
+  }
+});
+
+ipcMain.handle("ohmyopencode:save", async (event, payload) => {
+  const requestedPath = typeof payload?.path === "string" ? payload.path.trim() : "";
+  const resolvedPath = requestedPath || resolveOhMyOpencodePath();
+  const data = payload?.data;
+  const indent = payload?.indent ?? 2;
+
+  if (!data || typeof data !== "object") {
+    return {
+      status: "error",
+      code: "invalid_payload",
+      path: resolvedPath,
+      message: "Invalid config payload"
+    };
+  }
+
+  const invalid = collectInvalidModels(data);
+  if (invalid.length) {
+    return {
+      status: "error",
+      code: "invalid_models",
+      path: resolvedPath,
+      message: "Invalid model values detected",
+      invalid
+    };
+  }
+
+  try {
+    const backupPath = await writeJsonAtomicWithBackup(resolvedPath, data, indent);
+    return {
+      status: "ok",
+      path: resolvedPath,
+      backupPath: backupPath || null
+    };
+  } catch (error) {
+    return {
+      status: "error",
+      code: "write_error",
+      path: resolvedPath,
+      message: error?.message || "Failed to save config"
+    };
+  }
+});
 
 let antigravityConnectInFlight = null;
 ipcMain.handle("antigravity:connect", async () => {
