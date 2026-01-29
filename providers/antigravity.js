@@ -58,7 +58,6 @@ const shouldSkipModel = (label) => {
   const normalized = label.toLowerCase();
   if (normalized.startsWith("chat_")) return true;
   if (normalized.startsWith("rev19")) return true;
-  if (normalized.includes("gemini 2.5")) return true;
   if (normalized.includes("gemini 3 pro image")) return true;
   return false;
 };
@@ -206,8 +205,9 @@ const mapAntigravity = (quotaResponse) => {
     if (shouldSkipModel(label)) continue;
     const remainingFraction = clampFraction(quotaInfo.remainingFraction);
     const used = Math.max(0, Math.min(100, (1 - remainingFraction) * 100));
+    const category = label.toLowerCase().includes("antigravity") ? "antigravity" : "gemini-cli";
     normalized.push({
-      category: "antigravity",
+      category,
       model: label,
       limit: 100,
       used,
