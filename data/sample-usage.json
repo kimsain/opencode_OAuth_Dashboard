@@ -1,0 +1,61 @@
+{
+  "fetchedAt": "2026-01-28T09:45:00Z",
+  "items": [
+    {
+      "category": "chat",
+      "model": "gpt-5.2",
+      "used": 12450,
+      "limit": 50000,
+      "resetAt": "2026-02-01T00:00:00Z"
+    },
+    {
+      "category": "chat",
+      "model": "gpt-4.1",
+      "used": 8640,
+      "limit": 40000,
+      "resetAt": "2026-02-01T00:00:00Z"
+    },
+    {
+      "category": "reasoning",
+      "model": "o3-mini",
+      "used": 920,
+      "limit": 6000,
+      "resetAt": "2026-02-03T00:00:00Z"
+    },
+    {
+      "category": "embedding",
+      "model": "text-embedding-3-large",
+      "used": 410000,
+      "limit": 1000000,
+      "resetAt": "2026-02-05T00:00:00Z"
+    },
+    {
+      "category": "image",
+      "model": "gpt-image-1",
+      "used": 120,
+      "limit": 1500,
+      "resetAt": "2026-02-02T00:00:00Z"
+    },
+    {
+      "category": "audio",
+      "model": "gpt-4o-mini-tts",
+      "used": 280,
+      "limit": 2000,
+      "resetAt": "2026-02-02T12:00:00Z"
+    },
+    {
+      "category": "codex",
+      "model": "Codex Primary Window",
+      "used": 45,
+      "limit": 100,
+      "resetAt": "2026-01-29T00:00:00Z"
+    },
+    {
+      "category": "antigravity",
+      "model": "Antigravity All-Regions",
+      "used": 12,
+      "limit": 100,
+      "resetAt": "2026-02-01T00:00:00Z"
+    }
+  ]
+}

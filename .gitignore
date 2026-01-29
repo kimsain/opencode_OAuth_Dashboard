@@ -1,0 +1,28 @@
+# Dependencies
+node_modules/
+
+# Secrets & Credentials
+auth.json
+antigravity-accounts.json
+.env
+
+# Local Configuration
+app.config.json
+
+# Scratch & Tooling Artifacts
+%TEMP%/
+.sisyphus/
+
+# Build Outputs
+dist/
+build/
+out/
+*.exe
+*.dmg
+*.AppImage
+
+# Logs & OS Noise
+*.log
+npm-debug.log*
+.DS_Store
+Thumbs.db

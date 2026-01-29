@@ -1,0 +1,13 @@
+{
+  "name": "oauth-usage-dashboard",
+  "version": "0.1.0",
+  "description": "Desktop dashboard for OAuth usage monitoring",
+  "main": "main.js",
+  "private": true,
+  "scripts": {
+    "start": "electron ."
+  },
+  "devDependencies": {
+    "electron": "^40.0.0"
+  }
+}
