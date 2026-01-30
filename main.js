@@ -1,6 +1,7 @@
 const { app, BrowserWindow, ipcMain, shell } = require("electron");
 const path = require("path");
 const crypto = require("crypto");
+const os = require("os");
 const fs = require("fs/promises");
 
 const {
@@ -8,21 +9,33 @@ const {
   loadGoogleOAuth,
   loadActiveAntigravityAccount
 } = require("./providers/credentials");
-const { fetchAntigravityItems } = require("./providers/antigravity");
+const { fetchAntigravityItems, fetchGeminiCliItems } = require("./providers/antigravity");
 const { fetchCodexUsage, mapCodex } = require("./providers/codex");
+const { computeViewData } = require("./providers/view_mapper");
 const { connectAntigravity } = require("./providers/antigravity_connect");
 const { connectCodex } = require("./providers/codex_connect");
 const { resolveOhMyOpencodePath } = require("./providers/paths");
 
-const ALLOWED_MODELS = new Set([
-  "opencode/gpt-5-nano",
-  "opencode/big-pickle",
-  "openai/gpt-5.2-codex",
-  "openai/gpt-5.2",
-  "openai/gpt-5.1-codex-mini",
-  "google/antigravity-gemini-3-pro",
-  "google/antigravity-gemini-3-flash"
-]);
+const {
+  BASE_ALLOWED_MODELS,
+  ALLOWED_VARIANTS
+} = require("./providers/constants");
+
+const ALLOWED_MODELS = new Set(BASE_ALLOWED_MODELS);
+
+const ALLOWED_VARIANTS_SET = new Set(ALLOWED_VARIANTS);
+
+const DEFAULT_VARIANT_CATALOG = {
+  "openai/gpt-5.2-codex": ["low", "medium", "high", "xhigh"],
+  "openai/gpt-5.2": ["low", "medium", "high", "xhigh"],
+  "openai/gpt-5.1-codex-mini": ["low", "medium", "high"],
+  "opencode/big-pickle": ["low", "medium", "high"]
+};
+
+const mergeVariantCatalog = (catalog) => ({
+  ...DEFAULT_VARIANT_CATALOG,
+  ...(catalog || {})
+});
 
 const refreshDefaults = {
   intervalMs: 60_000,
@@ -54,13 +67,67 @@ const readJsonWithIndent = async (filePath) => {
   return { data: JSON.parse(raw), indent };
 };
 
+const resolveOpencodeConfigCandidates = () => {
+  const homeDir = os.homedir();
+  const candidates = [
+    path.join(homeDir, ".config", "opencode", "opencode.json"),
+    path.join(homeDir, ".local", "share", "opencode", "opencode.json")
+  ];
+  if (process.env.APPDATA) {
+    candidates.push(path.join(process.env.APPDATA, "opencode", "opencode.json"));
+  }
+  return candidates;
+};
+
+const loadOpencodeConfig = async () => {
+  const candidates = resolveOpencodeConfigCandidates();
+  for (const candidate of candidates) {
+    try {
+      const { data } = await readJsonWithIndent(candidate);
+      return data;
+    } catch (error) {
+      if (error?.code === "ENOENT" || error?.code === "EACCES" || error instanceof SyntaxError) {
+        continue;
+      }
+    }
+  }
+  return null;
+};
+
+const buildVariantCatalog = (config) => {
+  const catalog = {};
+  if (!config || typeof config !== "object") return catalog;
+  const providers = config.provider && typeof config.provider === "object" ? config.provider : {};
+  Object.entries(providers).forEach(([providerKey, providerValue]) => {
+    if (!providerValue || typeof providerValue !== "object") return;
+    const models = providerValue.models && typeof providerValue.models === "object" ? providerValue.models : {};
+    Object.entries(models).forEach(([modelKey, modelValue]) => {
+      if (!modelValue || typeof modelValue !== "object") return;
+      const variantsValue = modelValue.variants;
+      let variants = [];
+      if (Array.isArray(variantsValue)) {
+        variants = variantsValue.filter((variant) => typeof variant === "string");
+      } else if (variantsValue && typeof variantsValue === "object") {
+        variants = Object.keys(variantsValue);
+      }
+      variants = variants.map((variant) => variant.trim()).filter(Boolean);
+      if (!variants.length) return;
+      const fullModel = modelKey.includes("/") ? modelKey : `${providerKey}/${modelKey}`;
+      catalog[fullModel] = variants;
+    });
+  });
+  return catalog;
+};
+
 const extractModelEntries = (sectionName, sectionValue) => {
   const entries = [];
   if (Array.isArray(sectionValue)) {
     sectionValue.forEach((value, index) => {
       const isObject = value && typeof value === "object";
       const model = isObject ? value.model : undefined;
+      const variant = isObject ? value.variant : undefined;
       const hasModel = typeof model === "string";
+      const hasVariant = typeof variant === "string";
       const label =
         (isObject && (value.name || value.id)) || `${sectionName}[${index}]`;
       entries.push({
@@ -68,7 +135,11 @@ const extractModelEntries = (sectionName, sectionValue) => {
         label: String(label),
         model: hasModel ? model : null,
         hasModel,
+        variant: hasVariant ? variant : null,
+        hasVariant,
         path: [sectionName, index, "model"],
+        variantPath: [sectionName, index, "variant"],
+        objectPath: [sectionName, index],
         invalid: !isObject
       });
     });
@@ -76,13 +147,19 @@ const extractModelEntries = (sectionName, sectionValue) => {
     Object.entries(sectionValue).forEach(([key, value]) => {
       const isObject = value && typeof value === "object";
       const model = isObject ? value.model : undefined;
+      const variant = isObject ? value.variant : undefined;
       const hasModel = typeof model === "string";
+      const hasVariant = typeof variant === "string";
       entries.push({
         key,
         label: String(key),
         model: hasModel ? model : null,
         hasModel,
+        variant: hasVariant ? variant : null,
+        hasVariant,
         path: [sectionName, key, "model"],
+        variantPath: [sectionName, key, "variant"],
+        objectPath: [sectionName, key],
         invalid: !isObject
       });
     });
@@ -90,7 +167,7 @@ const extractModelEntries = (sectionName, sectionValue) => {
   return entries;
 };
 
-const collectInvalidModels = (data) => {
+const collectInvalidEntries = (data, variantCatalog) => {
   const invalid = [];
   const sections = [
     { name: "agents", value: data?.agents },
@@ -99,13 +176,30 @@ const collectInvalidModels = (data) => {
   sections.forEach((section) => {
     const entries = extractModelEntries(section.name, section.value);
     entries.forEach((entry) => {
-      if (!entry.hasModel) return;
-      if (!ALLOWED_MODELS.has(entry.model)) {
+      if (entry.hasModel && !ALLOWED_MODELS.has(entry.model)) {
         invalid.push({
           section: section.name,
           label: entry.label,
-          model: entry.model
+          type: "model",
+          value: entry.model
         });
+      }
+      if (entry.hasVariant) {
+        const catalogVariants =
+          entry.hasModel && variantCatalog && Array.isArray(variantCatalog[entry.model])
+            ? variantCatalog[entry.model]
+            : null;
+        const allowedVariants = catalogVariants && catalogVariants.length
+          ? catalogVariants
+          : Array.from(ALLOWED_VARIANTS_SET);
+        if (!allowedVariants.includes(entry.variant)) {
+          invalid.push({
+            section: section.name,
+            label: entry.label,
+            type: "variant",
+            value: entry.variant
+          });
+        }
       }
     });
   });
@@ -358,6 +452,12 @@ const resolveOAuthMode = async (refreshIntervalMs, enableSampleFallback) => {
         clientSecret: process.env.ANTIGRAVITY_CLIENT_SECRET
       })
     });
+    tasks.push({
+      provider: "gemini-cli",
+      promise: fetchGeminiCliItems(antigravityAccount, {
+        clientSecret: process.env.ANTIGRAVITY_CLIENT_SECRET
+      })
+    });
   }
 
   const settled = await Promise.allSettled(tasks.map((task) => task.promise));
@@ -416,13 +516,22 @@ const resolveUsagePayload = async () => {
   const enableSampleFallback = resolveSampleFallbackFlag(config);
   const dataMode = resolveDataMode(config);
 
+  let payload;
   if (dataMode === "api") {
-    return resolveApiMode(config, refreshIntervalMs, enableSampleFallback);
+    payload = await resolveApiMode(config, refreshIntervalMs, enableSampleFallback);
+  } else if (dataMode === "sample") {
+    payload = await resolveSampleMode(refreshIntervalMs);
+  } else {
+    payload = await resolveOAuthMode(refreshIntervalMs, enableSampleFallback);
   }
-  if (dataMode === "sample") {
-    return resolveSampleMode(refreshIntervalMs);
+
+  if (payload && payload.status === "ok" && Array.isArray(payload.items)) {
+    payload.viewData = computeViewData(payload.items);
+  } else if (payload && payload.fallback && payload.fallback.status === "ok") {
+    payload.fallback.viewData = computeViewData(payload.fallback.items);
   }
-  return resolveOAuthMode(refreshIntervalMs, enableSampleFallback);
+
+  return payload;
 };
 
 const createWindow = () => {
@@ -459,13 +568,34 @@ app.on("window-all-closed", () => {
   }
 });
 
-ipcMain.handle("usage:fetch", () => resolveUsagePayload());
+  ipcMain.handle("usage:fetch", () => resolveUsagePayload());
 
-ipcMain.handle("ohmyopencode:load", async (event, payload) => {
+  ipcMain.handle("app:get-constants", async () => {
+    let metadata = { agentRoleMap: {}, categoryRoleMap: {} };
+    try {
+      const metadataPath = path.join(__dirname, "data", "metadata.json");
+      metadata = await safeReadJson(metadataPath);
+    } catch (err) {
+      console.error("Failed to load metadata.json:", err);
+    }
+
+    return {
+      status: "ok",
+      baseAllowedModels: BASE_ALLOWED_MODELS,
+      allowedVariants: ALLOWED_VARIANTS,
+      agentRoleMap: metadata.agentRoleMap || {},
+      categoryRoleMap: metadata.categoryRoleMap || {}
+    };
+  });
+
+  ipcMain.handle("ohmyopencode:load", async (event, payload) => {
+
   const requestedPath = typeof payload?.path === "string" ? payload.path.trim() : "";
   const resolvedPath = requestedPath || resolveOhMyOpencodePath();
   try {
     const { data, indent } = await readJsonWithIndent(resolvedPath);
+    const opencodeConfig = await loadOpencodeConfig();
+    const variantCatalog = mergeVariantCatalog(buildVariantCatalog(opencodeConfig));
     const entries = {
       agents: extractModelEntries("agents", data?.agents),
       categories: extractModelEntries("categories", data?.categories)
@@ -475,7 +605,8 @@ ipcMain.handle("ohmyopencode:load", async (event, payload) => {
       path: resolvedPath,
       data,
       indent,
-      entries
+      entries,
+      variantCatalog
     };
   } catch (error) {
     if (error instanceof SyntaxError) {
@@ -530,13 +661,15 @@ ipcMain.handle("ohmyopencode:save", async (event, payload) => {
     };
   }
 
-  const invalid = collectInvalidModels(data);
+  const opencodeConfig = await loadOpencodeConfig();
+  const variantCatalog = mergeVariantCatalog(buildVariantCatalog(opencodeConfig));
+  const invalid = collectInvalidEntries(data, variantCatalog);
   if (invalid.length) {
     return {
       status: "error",
-      code: "invalid_models",
+      code: "invalid_entries",
       path: resolvedPath,
-      message: "Invalid model values detected",
+      message: "Invalid model or variant values detected",
       invalid
     };
   }

@@ -19,7 +19,8 @@ const state = {
   nextRefreshAt: null,
   refreshTimer: null,
   countdownTimer: null,
-  loading: false
+  loading: false,
+  viewData: { model: [], category: [] }
 };
 
 const editorState = {
@@ -29,39 +30,13 @@ const editorState = {
   activeTab: "agents",
   filter: "",
   entries: [],
-  allowedModels: [
-    "opencode/gpt-5-nano",
-    "opencode/big-pickle",
-    "openai/gpt-5.2-codex",
-    "openai/gpt-5.2",
-    "openai/gpt-5.1-codex-mini",
-    "google/antigravity-gemini-3-pro",
-    "google/antigravity-gemini-3-flash"
-  ]
+  variantCatalog: {},
+  allowedModels: [],
+  allowedVariants: []
 };
 
-const agentRoleMap = {
-  sisyphus: "Default orchestrator for planning, delegation, and execution.",
-  atlas: "Plan executor that delegates to specialists instead of doing everything directly.",
-  oracle: "Read-only consultant for architecture, reviews, and debugging.",
-  librarian: "External research specialist for docs and OSS examples.",
-  explore: "Fast codebase exploration and contextual search agent.",
-  "multimodal-looker": "Visual analysis for PDFs, images, and diagrams.",
-  prometheus: "Strategic planner that builds detailed execution plans.",
-  metis: "Pre-planning consultant for intent and ambiguity checks.",
-  momus: "Plan reviewer for clarity, completeness, and verification.",
-  "sisyphus-junior": "Dedicated executor focused on completing assigned work without re-delegation."
-};
-
-const categoryRoleMap = {
-  "visual-engineering": "Frontend and UI/UX implementation and styling.",
-  ultrabrain: "Deep reasoning for complex architecture decisions.",
-  artistry: "Highly creative and artistic tasks.",
-  quick: "Trivial fixes and small single-file changes.",
-  "unspecified-low": "Low-effort tasks without a clear category.",
-  "unspecified-high": "High-effort tasks without a clear category.",
-  writing: "Documentation and technical writing tasks."
-};
+let agentRoleMap = {};
+let categoryRoleMap = {};
 
 const connectState = {
   codexConnecting: false,
@@ -100,10 +75,7 @@ const initSegmented = (container, onSelect) => {
   return { updateSlider };
 };
 
-const viewToggle = initSegmented(document.querySelector(".segmented"), async (view) => {
-  state.view = view;
-  await renderCards();
-});
+const viewToggle = null;
 
 const setAccountInfo = (accountInfo) => {
   if (codexAccountEl) {
@@ -180,104 +152,12 @@ const scheduleAutoRefresh = () => {
   state.nextRefreshAt = Date.now() + state.refreshIntervalMs;
   state.refreshTimer = setInterval(() => {
     loadUsage(false);
-loadConfig();
   }, state.refreshIntervalMs);
   state.countdownTimer = setInterval(updateTimers, 1000);
   updateTimers();
 };
 
-const computeViewData = () => {
-  if (state.view === "model") {
-    const decorated = state.items.map((item) => ({
-      ...item,
-      title: item.model,
-      subtitle: `Category: ${item.category}`,
-      models: [item.model]
-    }));
 
-    const desiredOrder = [
-      // Column 1
-      "5-hour usage cap",
-      "Weekly usage cap",
-
-      // Column 2
-      "GPT-OSS 120B (Medium)",
-      "Claude Opus 4.5 (Thinking)",
-      "Claude Sonnet 4.5 (Thinking)",
-      "Claude Sonnet 4.5",
-
-      // Column 3
-      "Gemini 3 Pro (High)",
-      "Gemini 3 Pro (Low)",
-      "Gemini 3 Flash",
-      "tab_flash_lite_preview"
-    ];
-
-    const orderIndex = new Map(desiredOrder.map((name, i) => [name.toLowerCase(), i]));
-    return decorated
-      .slice()
-      .sort((a, b) => {
-        const ai = orderIndex.get(String(a.title).toLowerCase());
-        const bi = orderIndex.get(String(b.title).toLowerCase());
-        if (ai !== undefined || bi !== undefined) {
-          return (ai ?? 9999) - (bi ?? 9999);
-        }
-        return String(a.title).localeCompare(String(b.title));
-      });
-  }
-
-  const grouped = new Map();
-  state.items.forEach((item) => {
-    // By category: only Antigravity groups; Codex is excluded.
-    if (item.category === "codex") {
-      return;
-    }
-
-    const modelName = String(item.model || "");
-
-    // By category: omit Codex and omit preview-only buckets.
-    if (modelName === "tab_flash_lite_preview") {
-      return;
-    }
-    let groupName = "Antigravity Premium";
-    if (modelName.startsWith("Gemini 3 Pro")) {
-      groupName = "Antigravity Pro";
-    } else if (modelName === "Gemini 3 Flash") {
-      groupName = "Antigravity Flash";
-    }
-
-    const entry = grouped.get(groupName) || {
-      category: groupName,
-      used: 0,
-      limit: 0,
-      models: [],
-      resetAt: null
-    };
-
-    if (!entry.resetAt || (item.resetAt && item.resetAt < entry.resetAt)) {
-      entry.resetAt = item.resetAt;
-    }
-
-    // For shared quota categories, we don't sum used/limit.
-    // Instead, we take the max usage percentage among models.
-    entry.used = Math.max(entry.used, item.used);
-    entry.limit = 100; // Shared buckets are always 100% based here.
-    entry.models.push(item.model);
-
-    grouped.set(groupName, entry);
-  });
-
-  return Array.from(grouped.values()).map((entry) => ({
-    category: entry.category,
-    model: entry.category,
-    used: entry.used,
-    limit: entry.limit,
-    resetAt: entry.resetAt,
-    title: entry.category,
-    subtitle: `Models: ${entry.models.join(", ")}`,
-    models: entry.models
-  }));
-};
 
 const renderCards = async () => {
   const currentCards = cardsEl.querySelectorAll(".card");
@@ -289,7 +169,7 @@ const renderCards = async () => {
     await new Promise((resolve) => setTimeout(resolve, 400));
   }
 
-  const viewData = computeViewData();
+  const viewData = state.viewData.model || [];
   let html = "";
 
   // Render Provider Errors Banner
@@ -346,7 +226,7 @@ const renderCards = async () => {
       else if (remainingPercent < 30) healthClass = "health-danger";
 
       const brandClass = item.category.toLowerCase().includes("codex") ? "codex" : 
-                         item.category.toLowerCase().includes("antigravity") ? "antigravity" : "";
+                         item.category.toLowerCase().includes("antigravity") || item.category.toLowerCase().includes("gemini") ? "antigravity" : "";
 
       let statsHtml;
       if (isPercent) {
@@ -406,76 +286,105 @@ const renderCards = async () => {
     pickBuckets.set(key, list);
   });
 
-  const take = (title) => {
-    const key = String(title || "").toLowerCase();
-    const list = pickBuckets.get(key);
-    if (!list || list.length === 0) return null;
-    return list.shift();
-  };
-
   let index = 0;
 
-  if (state.view === "model") {
-    // Row-grouped layout (not column-grouped).
-    const row1 = ["5-hour usage cap", "Weekly usage cap"].map(take).filter(Boolean);
-    const row2 = [
-      "GPT-OSS 120B (Medium)",
-      "Claude Opus 4.5 (Thinking)",
-      "Claude Sonnet 4.5 (Thinking)",
-      "Claude Sonnet 4.5"
-    ]
-      .map(take)
-      .filter(Boolean);
-    const row3 = [
-      "Gemini 3 Pro (High)",
-      "Gemini 3 Pro (Low)",
-      "Gemini 3 Flash",
-      "tab_flash_lite_preview"
-    ]
-      .map(take)
-      .filter(Boolean);
+  // Group items by category for cleaner layout
+  const codexItems = [];
+  const googleItems = []; // Combined Antigravity + Google
+  const others = [];
 
-    const leftovers = [];
-    for (const list of pickBuckets.values()) {
-      leftovers.push(...list);
+  // Flatten pickBuckets to get all items
+  const allItems = [];
+  for (const list of pickBuckets.values()) {
+    allItems.push(...list);
+  }
+  
+  // Define models that should be labeled as "google" category
+  const googleCategoryModels = new Set([
+    "Gemini 2.5 Flash",
+    "Gemini 2.5 Flash (Thinking)",
+    "Gemini 2.5 Flash Lite",
+    "Gemini 2.5 Pro"
+  ]);
+
+  allItems.forEach(item => {
+    let cat = (item.category || "").toLowerCase();
+    
+    // 1. Skip Gemini CLI entirely
+    if (cat.includes("gemini-cli")) {
+      return; 
     }
-    leftovers.sort((a, b) => String(a.title).localeCompare(String(b.title)));
 
-    const rows = [row1, row2, row3];
-    if (leftovers.length) rows.push(leftovers);
+    // 2. Rename category for specific models
+    // Check exact model name match or partial match if needed. 
+    // The user list was specific, so we check exact title first.
+    if (googleCategoryModels.has(item.title)) {
+      item.category = "google";
+      cat = "google";
+      // Also update subtitle to reflect change
+      item.subtitle = `Category: google`; 
+    }
 
-    const colsForRowIndex = [2, 4, 4];
+    if (cat.includes("codex")) {
+      codexItems.push(item);
+    } else if (cat.includes("antigravity") || cat.includes("google")) {
+      googleItems.push(item);
+    } else {
+      others.push(item);
+    }
+  });
 
-    html += rows
-      .filter((row) => row.length > 0)
-      .map((row, rowIndex) => {
-        const cols = colsForRowIndex[rowIndex] || 3;
-        return `<div class="row" style="--cols:${cols}">${row
-          .map((it) => renderCard(it, index++))
-          .join("")}</div>`;
-      })
-      .join("");
+  // Helper to sort items
+  const sortGoogleItems = (items) => {
+    return items.sort((a, b) => {
+      // 3. GPT-OSS 120B (Medium) first
+      const aGptOss = a.title.includes("GPT-OSS 120B (Medium)");
+      const bGptOss = b.title.includes("GPT-OSS 120B (Medium)");
+      if (aGptOss && !bGptOss) return -1;
+      if (!aGptOss && bGptOss) return 1;
 
-    cardsEl.innerHTML = html;
-    return;
+      // Caps first
+      const aCap = a.title.toLowerCase().includes("cap");
+      const bCap = b.title.toLowerCase().includes("cap");
+      if (aCap && !bCap) return -1;
+      if (!aCap && bCap) return 1;
+
+      return String(a.title).localeCompare(String(b.title));
+    });
+  };
+  
+  const sortGeneric = (items) => {
+      return items.sort((a, b) => {
+      const aCap = a.title.toLowerCase().includes("cap");
+      const bCap = b.title.toLowerCase().includes("cap");
+      if (aCap && !bCap) return -1;
+      if (!aCap && bCap) return 1;
+      return String(a.title).localeCompare(String(b.title));
+    });
   }
 
-  // Category view: 3 big rows (one card per row), fixed order
-  const rows = ["Antigravity Premium", "Antigravity Pro", "Antigravity Flash"]
-    .map((title) => take(title))
-    .filter(Boolean)
-    .map((item) => [item]);
+  const renderSection = (title, items, sortFn) => {
+    if (!items.length) return "";
+    const sorted = sortFn ? sortFn(items) : sortGeneric(items);
+    const cols = Math.min(items.length, 4); // Max 4 cols
+    return `
+      ${title ? `<h3 class="section-header">${title}</h3>` : ""}
+      <div class="row" style="--cols:${cols}">
+        ${sorted.map((it) => renderCard(it, index++)).join("")}
+      </div>
+    `;
+  };
 
-  html += rows
-    .map((row) => `<div class="row row-wide" style="--cols:1">${row
-      .map((it) => renderCard(it, index++))
-      .join("")}</div>`)
-    .join("");
+  html += renderSection("OpenAI / Codex", codexItems);
+  html += renderSection("Google Antigravity", googleItems, sortGoogleItems);
+  html += renderSection("Others", others);
+
   cardsEl.innerHTML = html;
 };
 
 const applyPayload = async (payload, message) => {
   state.items = payload.items || [];
+  state.viewData = payload.viewData || { model: [], category: [] };
   state.source = payload.source || "sample";
   state.providerErrors = payload.providerErrors || [];
   setAccountInfo(payload.accountInfo);
@@ -613,6 +522,112 @@ const bulkApplyBtn = document.getElementById("bulk-apply-btn");
 const bulkToastEl = document.getElementById("bulk-toast");
 let bulkToastTimer = null;
 
+// Modal Elements
+const jsonModal = document.getElementById("json-modal");
+const jsonEditorTextarea = document.getElementById("json-editor-textarea");
+const jsonErrorEl = document.getElementById("json-error");
+const modalTitle = document.getElementById("modal-title");
+const modalCloseBtn = document.getElementById("modal-close-btn");
+const modalCancelBtn = document.getElementById("modal-cancel-btn");
+const modalSaveBtn = document.getElementById("modal-save-btn");
+
+let currentEditingId = null;
+let currentEditingType = null;
+
+const getValueAtPath = (obj, path) => {
+  if (!obj || !Array.isArray(path)) return undefined;
+  let cursor = obj;
+  for (const key of path) {
+    if (cursor == null) return undefined;
+    cursor = cursor[key];
+  }
+  return cursor;
+};
+
+const openJsonEditor = (id, type) => {
+  const entry = editorState.entries.find((e) => e.id === id && e.type === type);
+  if (!entry) return;
+
+  // Use objectPath if available (from new backend), fallback to parent of path for robustness
+  // But strictly, we expect objectPath now.
+  const targetPath = entry.objectPath || (entry.path ? entry.path.slice(0, -1) : null);
+  
+  const data = getValueAtPath(editorState.data, targetPath);
+  if (data === undefined) {
+    setEditorStatus("Error: Could not find data for this item", true);
+    return;
+  }
+
+  currentEditingId = id;
+  currentEditingType = type;
+  
+  modalTitle.textContent = `Edit ${entry.name}`;
+  jsonEditorTextarea.value = JSON.stringify(data, null, editorState.indent);
+  jsonErrorEl.classList.add("hidden");
+  
+  jsonModal.classList.remove("hidden");
+  // Small delay to allow display:block to apply before opacity transition
+  requestAnimationFrame(() => {
+    jsonModal.classList.add("visible");
+    jsonEditorTextarea.focus();
+  });
+};
+
+const closeJsonEditor = () => {
+  jsonModal.classList.remove("visible");
+  setTimeout(() => {
+    jsonModal.classList.add("hidden");
+    currentEditingId = null;
+    currentEditingType = null;
+    jsonEditorTextarea.value = "";
+  }, 300); // Match transition duration
+};
+
+const saveJsonEditor = async () => {
+  try {
+    const raw = jsonEditorTextarea.value;
+    const parsed = JSON.parse(raw);
+    
+    const entry = editorState.entries.find((e) => e.id === currentEditingId && e.type === currentEditingType);
+    if (!entry) throw new Error("Item not found");
+
+    const targetPath = entry.objectPath || (entry.path ? entry.path.slice(0, -1) : null);
+
+    // Update the main data object
+    setValueAtPath(editorState.data, targetPath, parsed);
+    
+    // If the model changed in the JSON, update the entry's model property too so the list reflects it
+    // We might need to re-scan or at least check if 'model' key exists in the new object
+    if (parsed && typeof parsed === 'object') {
+       // This is a simplification; ideally we'd re-run buildEntries logic for this item
+       // But for now, let's just assume we want to refresh the UI
+       // Update entry model if it exists in the new JSON
+       if (parsed.model) entry.model = parsed.model;
+       if (parsed.variant) entry.variant = parsed.variant;
+    }
+
+    closeJsonEditor();
+    await renderEditorList(false); // Refresh list to show changes
+    saveConfigBtn.disabled = false; // Enable global save
+    setEditorStatus("Item updated. Click Save to persist.", false);
+    
+  } catch (e) {
+    jsonErrorEl.textContent = "Invalid JSON: " + e.message;
+    jsonErrorEl.classList.remove("hidden");
+  }
+};
+
+// Modal Event Listeners
+modalCloseBtn.addEventListener("click", closeJsonEditor);
+modalCancelBtn.addEventListener("click", closeJsonEditor);
+modalSaveBtn.addEventListener("click", saveJsonEditor);
+jsonModal.addEventListener("click", (e) => {
+  if (e.target === jsonModal) closeJsonEditor();
+});
+jsonEditorTextarea.addEventListener("input", () => {
+  jsonErrorEl.classList.add("hidden");
+});
+
 const setEditorStatus = (message, isError = true) => {
   editorStatusEl.textContent = message || "";
   editorStatusEl.style.color = isError ? "var(--warn)" : "var(--success)";
@@ -651,8 +666,12 @@ const buildEntries = (entries) => {
         name: entry.label,
         model: entry.model,
         hasModel: entry.hasModel,
+        variant: entry.variant,
+        hasVariant: entry.hasVariant,
         invalid: entry.invalid,
         path: entry.path,
+        variantPath: entry.variantPath,
+        objectPath: entry.objectPath,
         role: agentRoleMap[String(entry.key).toLowerCase()] || null
       });
     });
@@ -665,8 +684,12 @@ const buildEntries = (entries) => {
         name: entry.label,
         model: entry.model,
         hasModel: entry.hasModel,
+        variant: entry.variant,
+        hasVariant: entry.hasVariant,
         invalid: entry.invalid,
         path: entry.path,
+        variantPath: entry.variantPath,
+        objectPath: entry.objectPath,
         role: categoryRoleMap[String(entry.key).toLowerCase()] || null
       });
     });
@@ -688,13 +711,26 @@ const setValueAtPath = (obj, path, value) => {
   }
 };
 
-const renderEditorList = async () => {
+const getAllowedVariantsForModel = (model) => {
+  if (!model) return [];
+  const catalog = editorState.variantCatalog || {};
+  const variants = catalog[model];
+  return Array.isArray(variants) ? variants : [];
+};
+
+const renderEditorList = async (animate = false) => {
+  editorListEl.classList.toggle("editor-list--animate", animate);
   const currentItems = editorListEl.querySelectorAll(".editor-item");
-  if (currentItems.length > 0) {
+  if (animate && currentItems.length > 0) {
     currentItems.forEach((item, i) => {
       item.classList.add("exiting");
       item.style.animationDelay = `${i * 20}ms`;
     });
+
+    setTimeout(() => {
+      editorListEl.classList.remove("editor-list--animate");
+    }, 2000);
+
     await new Promise((resolve) => setTimeout(resolve, 300));
   }
 
@@ -719,6 +755,10 @@ const renderEditorList = async () => {
     .map((entry, index) => {
       const isReadOnly = !entry.hasModel || entry.invalid;
       const isUnsupported = entry.hasModel && !editorState.allowedModels.includes(entry.model || "");
+      const modelVariants = getAllowedVariantsForModel(entry.model);
+      const allowedVariants = modelVariants.length ? modelVariants : editorState.allowedVariants;
+      const isVariantUnsupported = entry.hasVariant && !allowedVariants.includes(entry.variant || "");
+      
       const metaParts = [];
       if (entry.role) {
         metaParts.push(entry.role);
@@ -741,30 +781,86 @@ const renderEditorList = async () => {
         optionsHtml = `<option value="${entry.model || ""}" selected disabled>${label}</option>` + optionsHtml;
       }
 
+      let variantOptionsHtml = allowedVariants
+        .map(
+          (v) => `<option value="${v}" ${v === entry.variant ? "selected" : ""}>${v}</option>`
+        )
+        .join("");
+
+      if (isVariantUnsupported) {
+        const label = entry.variant ? `Unsupported (${entry.variant})` : "Unsupported variant";
+        variantOptionsHtml = `<option value="${entry.variant || ""}" selected disabled>${label}</option>` + variantOptionsHtml;
+      }
+
+      const style = animate ? `style="--index:${index}"` : "";
+
       return `
-      <div class="editor-item ${entry.type}" style="--index:${index}">
+      <div class="editor-item ${entry.type}" ${style} data-id="${entry.id}" data-type="${entry.type}">
         <div class="item-info">
           <div class="item-name">${escapeHtml(entry.name)}</div>
           ${metaLine ? `<div class="item-role">${escapeHtml(metaLine)}</div>` : ""}
         </div>
-        <div class="item-select-wrapper">
-          <select class="item-model-select" data-id="${entry.id}" data-type="${entry.type}" ${isReadOnly ? "disabled" : ""}>
-            ${optionsHtml}
-          </select>
+        <div class="item-selectors">
+          <div class="item-select-wrapper model">
+            <select class="item-model-select" data-id="${entry.id}" data-type="${entry.type}" ${isReadOnly ? "disabled" : ""}>
+              ${optionsHtml}
+            </select>
+          </div>
+          <div class="item-select-wrapper variant">
+            <select class="item-variant-select" data-id="${entry.id}" data-type="${entry.type}" ${isReadOnly ? "disabled" : ""}>
+              ${variantOptionsHtml}
+            </select>
+          </div>
         </div>
       </div>
     `;
     })
     .join("");
+  
+  // Add click listeners to items for JSON editing
+  editorListEl.querySelectorAll(".editor-item").forEach(item => {
+    item.addEventListener("click", (e) => {
+      // Don't trigger if clicking select boxes
+      if (e.target.closest("select")) return;
+      
+      const id = item.dataset.id;
+      const type = item.dataset.type;
+      openJsonEditor(id, type);
+    });
+  });
+
+  editorListEl.querySelectorAll(".item-model-select").forEach(select => {
+    select.addEventListener("change", async (e) => {
+      await updateModel(e.target.dataset.id, e.target.dataset.type, e.target.value);
+    });
+  });
+
+  editorListEl.querySelectorAll(".item-variant-select").forEach(select => {
+    select.addEventListener("change", async (e) => {
+      await updateVariant(e.target.dataset.id, e.target.dataset.type, e.target.value);
+    });
+  });
 };
 
-const updateModel = (id, type, newModel) => {
+const updateModel = async (id, type, newModel) => {
   if (!editorState.data) return;
 
   const entry = editorState.entries.find((e) => e.id === id && e.type === type);
   if (entry) {
     entry.model = newModel;
     setValueAtPath(editorState.data, entry.path, newModel);
+    await renderEditorList(false);
+  }
+};
+
+const updateVariant = async (id, type, newVariant) => {
+  if (!editorState.data) return;
+
+  const entry = editorState.entries.find((e) => e.id === id && e.type === type);
+  if (entry) {
+    entry.variant = newVariant;
+    setValueAtPath(editorState.data, entry.variantPath, newVariant);
+    await renderEditorList(false);
   }
 };
 
@@ -789,6 +885,7 @@ const loadConfig = async () => {
     editorState.data = res.data;
     editorState.indent = res.indent || 2;
     editorState.entries = buildEntries(res.entries);
+    editorState.variantCatalog = res.variantCatalog || {};
     if (configPathInput) {
       configPathInput.value = res.path || path;
     }
@@ -803,7 +900,7 @@ const loadConfig = async () => {
     
     saveConfigBtn.disabled = false;
     setEditorStatus("Loaded successfully", false);
-    await renderEditorList();
+    await renderEditorList(false);
   } catch (err) {
     setEditorStatus("Error: " + err.message);
     if (pathLabelEl) {
@@ -865,12 +962,12 @@ const applyBulkReplace = async () => {
   const changed = candidates.length;
   showBulkToast(`총 ${total}개 중 ${changed}개 변경됨`);
   setEditorStatus("", false);
-  await renderEditorList();
+  await renderEditorList(false);
 };
 
 const editorTabs = initSegmented(document.getElementById("editor-tabs"), async (tab) => {
   editorState.activeTab = tab;
-  await renderEditorList();
+  await renderEditorList(true);
 });
 
 if (changePathBtn) {
@@ -887,24 +984,46 @@ loadConfigBtn.addEventListener("click", async () => {
 saveConfigBtn.addEventListener("click", saveConfig);
 editorFilterInput.addEventListener("input", async (e) => {
   editorState.filter = e.target.value;
-  await renderEditorList();
+  await renderEditorList(false);
 });
 bulkApplyBtn.addEventListener("click", applyBulkReplace);
 
-editorState.allowedModels.forEach((m) => {
-  const sourceOpt = document.createElement("option");
-  sourceOpt.value = m;
-  sourceOpt.textContent = m;
-  bulkSourceSelect.appendChild(sourceOpt);
+const populateBulkDropdowns = () => {
+  bulkSourceSelect.innerHTML = "";
+  bulkTargetSelect.innerHTML = "";
 
-  const targetOpt = document.createElement("option");
-  targetOpt.value = m;
-  targetOpt.textContent = m;
-  bulkTargetSelect.appendChild(targetOpt);
-});
+  editorState.allowedModels.forEach((m) => {
+    const sourceOpt = document.createElement("option");
+    sourceOpt.value = m;
+    sourceOpt.textContent = m;
+    bulkSourceSelect.appendChild(sourceOpt);
+
+    const targetOpt = document.createElement("option");
+    targetOpt.value = m;
+    targetOpt.textContent = m;
+    bulkTargetSelect.appendChild(targetOpt);
+  });
+};
+
+const initAppConstants = async () => {
+  try {
+    const res = await window.usageApi.getConstants();
+    if (res.status === "ok") {
+      editorState.allowedModels = res.baseAllowedModels;
+      editorState.allowedVariants = res.allowedVariants;
+      agentRoleMap = res.agentRoleMap || {};
+      categoryRoleMap = res.categoryRoleMap || {};
+      populateBulkDropdowns();
+    }
+  } catch (err) {
+    console.error("Failed to fetch app constants:", err);
+  }
+};
 
 // Auto load on start
-setTimeout(loadConfig, 500);
+initAppConstants().then(() => {
+  setTimeout(loadConfig, 500);
+});
 
 // Theme management
 const initTheme = () => {
@@ -961,9 +1080,14 @@ if (connectCodexBtn) {
   });
 }
 
-// Ensure slider is in right position on load
-window.addEventListener("resize", viewToggle.updateSlider);
-setTimeout(viewToggle.updateSlider, 100);
+window.addEventListener("resize", () => {
+  // viewToggle.updateSlider(); // Removed
+  editorTabs.updateSlider();
+});
+setTimeout(() => {
+  // viewToggle.updateSlider(); // Removed
+  editorTabs.updateSlider();
+}, 100);
 
 loadUsage(false);
 loadConfig();

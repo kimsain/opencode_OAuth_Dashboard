@@ -5,9 +5,27 @@
   "main": "main.js",
   "private": true,
   "scripts": {
-    "start": "electron ."
+    "start": "electron .",
+    "pack": "electron-builder --dir",
+    "dist": "electron-builder"
+  },
+  "build": {
+    "appId": "com.opencode.quota-pulse",
+    "productName": "Quota Pulse",
+    "directories": {
+      "output": "exe_files"
+    },
+    "win": {
+      "target": "nsis"
+    },
+    "files": [
+      "**/*",
+      "!exe_files/**/*",
+      "!.sisyphus/**/*"
+    ]
   },
   "devDependencies": {
-    "electron": "^40.0.0"
+    "electron": "^40.0.0",
+    "electron-builder": "^26.4.0"
   }
 }

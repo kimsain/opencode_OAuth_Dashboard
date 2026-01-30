@@ -68,15 +68,6 @@
       </header>
 
       <section class="controls">
-        <div class="segmented" role="tablist" aria-label="View toggle">
-          <div class="selection-slider"></div>
-          <button data-view="model" class="segment active" role="tab" aria-selected="true">
-            By model
-          </button>
-          <button data-view="category" class="segment" role="tab" aria-selected="false">
-            By category
-          </button>
-        </div>
         <div id="status-message" class="status"></div>
       </section>
 
@@ -114,12 +105,12 @@
         </header>
 
         <div class="editor-toolbar">
-          <div class="editor-group">
-            <div class="segmented" role="tablist" id="editor-tabs">
-              <div class="selection-slider"></div>
-              <button data-tab="agents" class="segment active" role="tab" aria-selected="true">Agents</button>
-              <button data-tab="categories" class="segment" role="tab" aria-selected="false">Categories</button>
-            </div>
+          <div class="editor-tabs-box">
+             <div class="segmented" role="tablist" id="editor-tabs">
+                <div class="selection-slider"></div>
+                <button data-tab="agents" class="segment active" role="tab" aria-selected="true">Agents</button>
+                <button data-tab="categories" class="segment" role="tab" aria-selected="false">Categories</button>
+              </div>
           </div>
             
           <div class="bulk-replace-box">
@@ -130,7 +121,11 @@
                   <option value="" disabled selected>Source Model...</option>
                 </select>
               </div>
-              <span class="bulk-arrow">→</span>
+              <span class="bulk-arrow">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M5 12h14m-7-7 7 7-7 7" />
+                </svg>
+              </span>
               <div class="bulk-field">
                 <label class="bulk-label" for="bulk-target-model">Target model</label>
                 <select id="bulk-target-model">
@@ -171,6 +166,29 @@
           </div>
         </div>
       </section>
+    </div>
+
+    <!-- JSON Editor Modal -->
+    <div id="json-modal" class="modal-overlay hidden">
+      <div class="modal-content">
+        <header class="modal-header">
+          <h3 id="modal-title">Edit Configuration</h3>
+          <button id="modal-close-btn" class="icon-btn" aria-label="Close">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <line x1="18" y1="6" x2="6" y2="18"></line>
+              <line x1="6" y1="6" x2="18" y2="18"></line>
+            </svg>
+          </button>
+        </header>
+        <div class="modal-body">
+          <textarea id="json-editor-textarea" spellcheck="false"></textarea>
+          <div id="json-error" class="json-error hidden">Invalid JSON</div>
+        </div>
+        <footer class="modal-footer">
+          <button id="modal-cancel-btn" class="secondary-btn">Cancel</button>
+          <button id="modal-save-btn" class="primary-btn">Update</button>
+        </footer>
+      </div>
     </div>
 
     <script src="renderer.js"></script>

@@ -4,6 +4,11 @@ node_modules/
 # Secrets & Credentials
 auth.json
 antigravity-accounts.json
+credentials.json
+client_secret*.json
+token.json
+oauth2.keys.json
+oh-my-opencode.json
 .env
 
 # Local Configuration
@@ -17,6 +22,7 @@ app.config.json
 dist/
 build/
 out/
+exe_files/
 *.exe
 *.dmg
 *.AppImage
@@ -26,3 +32,9 @@ out/
 npm-debug.log*
 .DS_Store
 Thumbs.db
+
+# IDE & Editor
+.idea/
+.vscode/
+*.sublime-workspace
+*.sublime-project

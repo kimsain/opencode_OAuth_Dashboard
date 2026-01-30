@@ -11,6 +11,10 @@ const ANTIGRAVITY_CLIENT_SECRET_PUBLIC = "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";
 const DEFAULT_USER_AGENT = "antigravity/1.11.5 windows/amd64";
 const DEFAULT_X_GOOG_API_CLIENT = "google-cloud-sdk vscode_cloudshelleditor/0.1";
 
+const GEMINI_CLI_USER_AGENT = "google-api-nodejs-client/10.3.0";
+const GEMINI_CLI_X_GOOG_API_CLIENT = "gl-node/22.18.0";
+const GEMINI_CLI_METADATA_STRING = "ideType=IDE_UNSPECIFIED,platform=PLATFORM_UNSPECIFIED,pluginType=GEMINI";
+
 const toFiniteNumber = (value) => {
   if (value === undefined || value === null) return null;
   if (typeof value === "number" && Number.isFinite(value)) return value;
@@ -190,7 +194,7 @@ const normalizeOptions = (overrides = {}) => ({
   clientMetadata: overrides.clientMetadata
 });
 
-const mapAntigravity = (quotaResponse) => {
+const mapAntigravity = (quotaResponse, categoryOverride) => {
   if (!quotaResponse || typeof quotaResponse !== "object") return [];
   const models = quotaResponse.models;
   if (!models || typeof models !== "object") return [];
@@ -205,7 +209,7 @@ const mapAntigravity = (quotaResponse) => {
     if (shouldSkipModel(label)) continue;
     const remainingFraction = clampFraction(quotaInfo.remainingFraction);
     const used = Math.max(0, Math.min(100, (1 - remainingFraction) * 100));
-    const category = label.toLowerCase().includes("antigravity") ? "antigravity" : "gemini-cli";
+    const category = categoryOverride || (label.toLowerCase().includes("antigravity") ? "antigravity" : "gemini-cli");
     normalized.push({
       category,
       model: label,
@@ -219,7 +223,40 @@ const mapAntigravity = (quotaResponse) => {
 };
 
 const fetchAntigravityItems = async (account, options = {}) => {
-  const resolved = normalizeOptions(options);
+  return fetchInternal(account, {
+    ...options,
+    category: "antigravity"
+  });
+};
+
+const fetchGeminiCliItems = async (account, options = {}) => {
+  try {
+    return await fetchInternal(account, {
+      ...options,
+      userAgent: GEMINI_CLI_USER_AGENT,
+      xGoogApiClient: GEMINI_CLI_X_GOOG_API_CLIENT,
+      clientMetadata: GEMINI_CLI_METADATA_STRING,
+      category: "gemini-cli"
+    });
+  } catch (error) {
+    // 403 Forbidden means the Project ID (likely default 'rising-fact-p41fc') blocks Gemini CLI User-Agent.
+    if (error.message && error.message.includes("403")) {
+      // Retry with Antigravity User-Agent but keep Gemini metadata.
+      // This allows access to the project while attempting to request the specific quota pool via headers.
+      return fetchInternal(account, {
+        ...options,
+        userAgent: DEFAULT_USER_AGENT, 
+        xGoogApiClient: GEMINI_CLI_X_GOOG_API_CLIENT,
+        clientMetadata: GEMINI_CLI_METADATA_STRING,
+        category: "gemini-cli"
+      });
+    }
+    throw error;
+  }
+};
+
+const fetchInternal = async (account, options) => {
+   const resolved = normalizeOptions(options);
   if (!account || typeof account !== "object") {
     throw new Error("Missing Antigravity account");
   }
@@ -254,11 +291,17 @@ const fetchAntigravityItems = async (account, options = {}) => {
     projectId = extractProjectId(assist?.cloudaicompanionProject);
   }
   const quotaResponse = await fetchAvailableModels(accessToken, projectId, resolved);
-  return mapAntigravity(quotaResponse);
-};
+  return mapAntigravity(quotaResponse, options.category);
+}
+
+// Re-exporting the original signature for backward compatibility if needed, 
+// but we are replacing the file content so we can change the exports.
+// We need to fix fetchAntigravityItems to use fetchInternal too.
+
 
 module.exports = {
   CLOUDCODE_METADATA,
   mapAntigravity,
-  fetchAntigravityItems
+  fetchAntigravityItems,
+  fetchGeminiCliItems
 };

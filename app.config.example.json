@@ -1,6 +1,4 @@
 {
-  // dataMode options: "oauth" (default), "api", "sample"
-  // Precedence: oauth > api > sample
   "dataMode": "oauth",
   "enableSampleFallback": true,
   "usageUrl": "https://api.example.com/v1/usage",

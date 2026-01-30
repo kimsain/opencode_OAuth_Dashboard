@@ -1,78 +1,89 @@
-# OAuth Usage Dashboard - AGENTS
+# Quota Pulse - Agent Guidelines (AGENTS.md)
 
-Generated: 2026-01-29
-Git: n/a (not a git repo)
+Updated: 2026-01-30
+Project: Electron Desktop Dashboard for OAuth Usage & Quota Monitoring
 
-Electron desktop app that shows quota/usage for OAuth-connected providers.
-Reads local OpenCode credential files and polls provider endpoints every minute (plus manual refresh).
+## 📋 OVERVIEW
+Premium Electron dashboard for real-time OAuth quota monitoring (Codex/Antigravity) and `oh-my-opencode.json` configuration management.
+Key features: Glassmorphic UI, state-driven rendering, atomic config safety, and bilingual support (EN/KR).
 
-## Structure
+## 🛠 COMMANDS
+*   **Start App**: `npm start` (Runs `electron .`)
+*   **Install Deps**: `npm install`
+*   **Tests**: No automated test suite. Manual verification required.
+    *   **Verify**: Start app, click "Refresh", check console for errors (Ctrl+Shift+I).
+*   **Linting**: No automated linter. Follow existing style strictly.
 
-```
-./
-  main.js
-  preload.js
-  renderer.js
-  index.html
-  styles.css
-  app.config.json
-  app.config.example.json
-  data/
-  providers/
-  .sisyphus/
-  %TEMP%/               # scratch area (not part of app runtime)
-```
+## 🏗 CODE STRUCTURE
+*   **Process Manager** (`main.js`): Entry point. Handles IPC, file I/O, and API orchestration.
+*   **UI Logic** (`renderer.js`): Pure DOM manipulation. State-driven (`state` object -> `render()` pattern).
+*   **Bridge** (`preload.js`): Exposes safe API to renderer via `window.usageApi`.
+*   **Providers** (`providers/`):
+    *   `antigravity.js` / `codex.js`: API adapters using Adapter Pattern.
+    *   `credentials.js`: Token/Auth management.
+    *   `paths.js`: Cross-platform path resolution (XDG standards).
+    *   `view_mapper.js`: Normalizes data for UI (sorting/grouping).
+*   **Config**: `app.config.json` (Runtime), `oh-my-opencode.json` (Target managed config).
 
-## Where to look
+## 🎨 CODE STYLE & CONVENTIONS
 
-| Task | Location | Notes |
-|------|----------|-------|
-| IPC + orchestration | `main.js` | owns fetch flow and IPC handlers |
-| Renderer UI | `renderer.js` | DOM rendering; must escape error strings |
-| Preload API | `preload.js` | only expose narrow IPC surface |
-| Provider fetch/mapping | `providers/` | credentials, adapters, connect flows |
-| Config | `app.config.json` | strict JSON only; comments break parsing |
-| Sample payload | `data/sample-usage.json` | used for `dataMode:"sample"` / fallback |
-| Planning notes | `.sisyphus/` | non-runtime artifacts |
+### JavaScript (CommonJS)
+*   **Module System**: `require` / `module.exports`. **NO ESM** (`import`/`export`).
+*   **Formatting**: 
+    *   **Indentation**: 2 spaces.
+    *   **Semicolons**: **REQUIRED**.
+    *   **Quotes**: Double quotes `"` preferred.
+*   **Async/Await**: Preferred over raw promises. `fs.promises` for file I/O.
+*   **Naming**:
+    *   Variables/Functions: `camelCase` (e.g., `fetchUsage`, `renderCards`).
+    *   Constants: `UPPER_SNAKE_CASE` (e.g., `BASE_ALLOWED_MODELS`).
+    *   DOM Elements: Suffix with `El` or `Btn` (e.g., `refreshBtn`, `statusEl`).
 
-## Commands
+### Electron Patterns
+*   **IPC Communication**:
+    *   **Main**: `ipcMain.handle("channel:action", async () => { ... })`.
+    *   **Renderer**: `window.usageApi.action()`.
+    *   **Response**: Standardized `{ status: "ok", data: ... }` or `{ status: "error", message: ... }`.
+*   **Security**:
+    *   `contextIsolation: true`, `nodeIntegration: false`.
+    *   **NEVER** pass raw tokens/secrets to Renderer. Redact in `providers/` before returning.
+    *   **File I/O**: Only in Main process. Use `safeReadJson` helper.
 
-```bash
-npm install
-npm start
-```
+### UI / Renderer
+*   **State Management**: Single `state` object. Mutate `state`, then call `render*()` function.
+    *   *Do not* implementation complex reactive frameworks (React/Vue). Keep it vanilla.
+*   **Safety**: Always use `escapeHtml()` helper before injecting user content into `innerHTML`.
+*   **Design**: Glassmorphism.
+    *   Use CSS variables (`--glass-bg`, `--text-primary`) for theming.
+    *   Use `backdrop-filter: blur(...)` for depth.
 
-## Configuration
+## 🔒 SECURITY & CONFIG
+*   **Secrets**: Never commit `app.config.json` or credential files (`auth.json`, `credentials.json`).
+*   **Config Resolution**:
+    *   Follows XDG standards (via `providers/paths.js`).
+    *   Checks `~/.config/opencode`, `~/.local/share/opencode`, and `%APPDATA%`.
+*   **Atomic Writes**: Critical for config integrity. `ipcMain.handle("ohmyopencode:save")` must ensure partial writes don't corrupt files.
 
-- `app.config.json` must be strict JSON.
-- `app.config.example.json` is JSON-with-comments for humans; do not use as runtime config.
-- Key keys: `dataMode` (`oauth` | `api` | `sample`), `enableSampleFallback`, `refreshIntervalMs`.
+## 🤖 AGENT BEHAVIOR
+1.  **Read First**: Check `main.js` and `renderer.js` to understand the flow before editing.
+2.  **No New Deps**: Avoid adding npm packages unless absolutely necessary.
+3.  **Preserve Style**: Match existing indentation and variable naming conventions.
+4.  **Error Handling**:
+    *   Providers should throw actionable errors.
+    *   Main process catches and formats for Renderer.
+    *   Do not swallow errors silently unless explicitly handling `ENOENT` (file not found).
 
-## OAuth / local files (secrets)
+## ⚠️ TROUBLESHOOTING & COMMON PITFALLS
+*   **"require is not defined" in Renderer**: You used `require` in `renderer.js`. Move logic to `preload.js` or `main.js`.
+*   **IPC Handler Not Found**: Ensure channels match exactly in `main.js` and `preload.js`.
+*   **Path Issues**: Always use `providers/paths.js` resolvers. Do not hardcode paths like `C:\`.
+*   **Undefined DOM Elements**: `renderer.js` runs after DOM load, but ensure IDs match `index.html`.
 
-- Credentials are read from user-scoped files resolved by `providers/paths.js`.
-- Treat anything derived from `auth.json` / `antigravity-accounts.json` as secret.
-
-## Connect flows
-
-- Codex callback: `http://localhost:1455/auth/callback`.
-- Antigravity callback: `http://localhost:51121/oauth-callback`.
-- Port conflicts are common (Codex: if OpenCode/Codex CLI is running).
-
-## Data flow (runtime contract)
-
-1) Renderer calls `window.usageApi.fetchUsage()`.
-2) Main returns `{ status, source, fetchedAt, items, refreshIntervalMs, providerErrors?, accountInfo? }`.
-3) Renderer renders banner/errors + cards.
-
-## Conventions
-
-- CommonJS (`require`, `module.exports`), semicolons, 2-space indent.
-- Provider IDs are stable: `codex`, `antigravity`.
-
-## Anti-patterns (project)
-
-- Never log tokens, refresh tokens, auth codes, or full callback URLs.
-- Never write secrets into `app.config.json`.
-- Keep Electron security: `contextIsolation: true`, `nodeIntegration: false`.
-- `%TEMP%/` is not app runtime; avoid coupling product code to it.
+## 🧠 ARCHITECTURE FLOW
+1.  **User Action**: Click "Refresh" in UI (`renderer.js`).
+2.  **IPC Call**: `window.usageApi.refresh()` -> `ipcRenderer.invoke("usage:refresh")`.
+3.  **Main Handler**: `main.js` receives call.
+4.  **Provider Fetch**: Calls `fetchCodexUsage` / `fetchAntigravityItems`.
+5.  **Normalization**: Providers return array of items `{ model, used, limit, ... }`.
+6.  **Response**: `main.js` sends `{ status: "ok", data: items }` back.
+7.  **Render**: `renderer.js` updates `state.items` and calls `renderCards()`.

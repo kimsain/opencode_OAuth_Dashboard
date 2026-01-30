@@ -1,26 +1,30 @@
-# providers/ - AGENTS
+# Quota Pulse - Provider Layer (AGENTS.md)
 
-Provider layer: credential discovery, provider API calls, usage/quota mapping, and OAuth connect flows.
+Updated: 2026-01-29
 
-## Where to look
+## 🧩 PROVIDER ARCHITECTURE
 
+### OVERVIEW
+Providers implement an **Adapter Pattern** to abstract diverse quota/usage sources into a unified dashboard contract. They handle the "Discovery -> Auth -> Fetch -> Map" lifecycle, shielding the main process from API-specific complexities.
+
+### WHERE TO LOOK
 | Task | Location | Notes |
-|------|----------|-------|
-| Resolve local credential file paths | `providers/paths.js` | XDG/Windows fallbacks; must stay cross-platform |
-| Read/parse credential files | `providers/credentials.js` | never log tokens; return minimal account info |
-| Fetch + map Codex usage | `providers/codex.js` | maps usage windows into dashboard items |
-| Fetch + map Antigravity quota | `providers/antigravity.js` | percent-based quotas; maps to items |
-| OpenAI OAuth connect | `providers/codex_connect.js` | localhost callback server; launches browser |
-| Google OAuth connect | `providers/antigravity_connect.js` | localhost callback server; launches browser |
+|:---|:---|:---|
+| **Path Resolution** | `providers/paths.js` | Cross-platform path detection; must stay environment-agnostic. |
+| **Credential Discovery** | `providers/credentials.js` | Logic for finding local `auth.json` or Google SDK `accounts.json`. |
+| **API Mapping (Codex)** | `providers/codex.js` | Maps OpenAI usage windows into dashboard items. |
+| **API Mapping (Google)** | `providers/antigravity.js` | Maps Google Cloud quota fractions to items. |
+| **Data Normalization** | `providers/view_mapper.js` | Groups and sorts items for Model/Category views (title, subtitle decoration). |
+| **Shared Constants** | `providers/constants.js` | lists `BASE_ALLOWED_MODELS` and `ALLOWED_VARIANTS`. |
+| **OAuth Flows** | `providers/*_connect.js` | Local server handlers for browser-based OAuth connect flows. |
 
-## Conventions (here)
+### CONVENTIONS
+*   **Stable Naming**: Provider keys in payloads must remain consistent (e.g., `codex`, `antigravity`).
+*   **Redaction Policy**: **Strict Privacy.** NEVER log, store, or return raw secrets (access/refresh tokens, auth codes, full callback URLs).
+*   **Atomic Responses**: Return lists of standardized items: `{ category, model, used, limit, resetAt, unit }`.
+*   **Errors**: Throw actionable `Error(message)`; main process aggregates these.
 
-- Throw actionable `Error(message)` from providers; main process aggregates into `providerErrors`.
-- Redact aggressively: no access/refresh tokens, auth codes, or full callback URLs in logs/errors.
-- Keep provider names stable in payloads: `codex`, `antigravity`.
-
-## Anti-patterns (here)
-
-- Do not persist refreshed tokens back to disk from this app.
-- Do not expose secrets through IPC (only derived display fields like email).
-- Do not add broad APIs to `preload.js` that leak provider internals.
+### ANTI-PATTERNS
+*   **No Disk Persistence**: Providers must NOT write refreshed tokens or auth state back to disk. This app is a monitoring tool.
+*   **No Synchronous I/O**: Use `fs.promises` or `fetch` for all filesystem and network operations.
+*   **No UI Logic**: Providers map data for dashboard consumption; they do not handle presentation.
