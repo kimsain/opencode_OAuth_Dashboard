@@ -59,6 +59,8 @@ Key features: Glassmorphic UI, state-driven rendering, atomic config safety, and
 
 ## 🔒 SECURITY & CONFIG
 *   **Secrets**: Never commit `app.config.json` or credential files (`auth.json`, `credentials.json`).
+*   **Input Sanitization**: All user-provided data (e.g., config values) must be escaped via `escapeHtml()` before rendering to prevent XSS.
+*   **Network Stability**: API requests must have a 30s timeout (`AbortController`) to prevent UI hangs.
 *   **Config Resolution**:
     *   Follows XDG standards (via `providers/paths.js`).
     *   Checks `~/.config/opencode`, `~/.local/share/opencode`, and `%APPDATA%`.

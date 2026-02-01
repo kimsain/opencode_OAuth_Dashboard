@@ -75,8 +75,6 @@ const initSegmented = (container, onSelect) => {
   return { updateSlider };
 };
 
-const viewToggle = null;
-
 const setAccountInfo = (accountInfo) => {
   if (codexAccountEl) {
     codexAccountEl.textContent = accountInfo?.codex?.email || accountInfo?.codex?.id || "--";
@@ -777,8 +775,8 @@ const renderEditorList = async (animate = false) => {
         .join("");
 
       if (isUnsupported) {
-        const label = entry.model ? `Unsupported (${entry.model})` : "Unsupported model";
-        optionsHtml = `<option value="${entry.model || ""}" selected disabled>${label}</option>` + optionsHtml;
+        const label = entry.model ? `Unsupported (${escapeHtml(entry.model)})` : "Unsupported model";
+        optionsHtml = `<option value="${escapeHtml(entry.model || "")}" selected disabled>${label}</option>` + optionsHtml;
       }
 
       let variantOptionsHtml = allowedVariants
@@ -788,8 +786,8 @@ const renderEditorList = async (animate = false) => {
         .join("");
 
       if (isVariantUnsupported) {
-        const label = entry.variant ? `Unsupported (${entry.variant})` : "Unsupported variant";
-        variantOptionsHtml = `<option value="${entry.variant || ""}" selected disabled>${label}</option>` + variantOptionsHtml;
+        const label = entry.variant ? `Unsupported (${escapeHtml(entry.variant)})` : "Unsupported variant";
+        variantOptionsHtml = `<option value="${escapeHtml(entry.variant || "")}" selected disabled>${label}</option>` + variantOptionsHtml;
       }
 
       const style = animate ? `style="--index:${index}"` : "";
@@ -1079,15 +1077,6 @@ if (connectCodexBtn) {
     connectCodex();
   });
 }
-
-window.addEventListener("resize", () => {
-  // viewToggle.updateSlider(); // Removed
-  editorTabs.updateSlider();
-});
-setTimeout(() => {
-  // viewToggle.updateSlider(); // Removed
-  editorTabs.updateSlider();
-}, 100);
 
 loadUsage(false);
 loadConfig();

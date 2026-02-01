@@ -96,21 +96,30 @@ const exchangeRefreshToken = async (refreshToken, options) => {
     client_id: options.clientId,
     client_secret: options.clientSecret
   });
-  const response = await fetchFn(options.tokenUrl, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/x-www-form-urlencoded"
-    },
-    body: params.toString()
-  });
-  if (!response.ok) {
-    throw new Error(await buildErrorMessage("Antigravity token refresh failed", response));
+
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), options.timeout || 30000);
+
+  try {
+    const response = await fetchFn(options.tokenUrl, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/x-www-form-urlencoded"
+      },
+      body: params.toString(),
+      signal: controller.signal
+    });
+    if (!response.ok) {
+      throw new Error(await buildErrorMessage("Antigravity token refresh failed", response));
+    }
+    const data = await response.json();
+    if (!data || !data.access_token) {
+      throw new Error("Antigravity token refresh did not return an access token");
+    }
+    return data.access_token;
+  } finally {
+    clearTimeout(timeoutId);
   }
-  const data = await response.json();
-  if (!data || !data.access_token) {
-    throw new Error("Antigravity token refresh did not return an access token");
-  }
-  return data.access_token;
 };
 
 const resolveAccessToken = (account) => {
@@ -139,44 +148,62 @@ const isAccessTokenExpired = (account) => {
 const loadCodeAssist = async (accessToken, options) => {
   const fetchFn = ensureFetch(options.fetch);
   const clientMetadata = options.clientMetadata || JSON.stringify(options.metadata);
-  const response = await fetchFn(`${options.cloudcodeBaseUrl}/v1internal:loadCodeAssist`, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-      "Content-Type": "application/json",
-      Accept: "application/json",
-      "User-Agent": options.userAgent,
-      "X-Goog-Api-Client": options.xGoogApiClient,
-      "Client-Metadata": clientMetadata
-    },
-    body: JSON.stringify({ metadata: options.metadata })
-  });
-  if (!response.ok) {
-    throw new Error(await buildErrorMessage("loadCodeAssist failed", response));
+
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), options.timeout || 30000);
+
+  try {
+    const response = await fetchFn(`${options.cloudcodeBaseUrl}/v1internal:loadCodeAssist`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        "Content-Type": "application/json",
+        Accept: "application/json",
+        "User-Agent": options.userAgent,
+        "X-Goog-Api-Client": options.xGoogApiClient,
+        "Client-Metadata": clientMetadata
+      },
+      body: JSON.stringify({ metadata: options.metadata }),
+      signal: controller.signal
+    });
+    if (!response.ok) {
+      throw new Error(await buildErrorMessage("loadCodeAssist failed", response));
+    }
+    return response.json();
+  } finally {
+    clearTimeout(timeoutId);
   }
-  return response.json();
 };
 
 const fetchAvailableModels = async (accessToken, projectId, options) => {
   const fetchFn = ensureFetch(options.fetch);
   const payload = projectId ? { project: projectId } : {};
   const clientMetadata = options.clientMetadata || JSON.stringify(options.metadata);
-  const response = await fetchFn(`${options.cloudcodeBaseUrl}/v1internal:fetchAvailableModels`, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-      "Content-Type": "application/json",
-      Accept: "application/json",
-      "User-Agent": options.userAgent,
-      "X-Goog-Api-Client": options.xGoogApiClient,
-      "Client-Metadata": clientMetadata
-    },
-    body: JSON.stringify(payload)
-  });
-  if (!response.ok) {
-    throw new Error(await buildErrorMessage("fetchAvailableModels failed", response));
+
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), options.timeout || 30000);
+
+  try {
+    const response = await fetchFn(`${options.cloudcodeBaseUrl}/v1internal:fetchAvailableModels`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        "Content-Type": "application/json",
+        Accept: "application/json",
+        "User-Agent": options.userAgent,
+        "X-Goog-Api-Client": options.xGoogApiClient,
+        "Client-Metadata": clientMetadata
+      },
+      body: JSON.stringify(payload),
+      signal: controller.signal
+    });
+    if (!response.ok) {
+      throw new Error(await buildErrorMessage("fetchAvailableModels failed", response));
+    }
+    return response.json();
+  } finally {
+    clearTimeout(timeoutId);
   }
-  return response.json();
 };
 
 const normalizeOptions = (overrides = {}) => ({
@@ -191,7 +218,8 @@ const normalizeOptions = (overrides = {}) => ({
     ANTIGRAVITY_CLIENT_SECRET_PUBLIC,
   userAgent: overrides.userAgent || DEFAULT_USER_AGENT,
   xGoogApiClient: overrides.xGoogApiClient || DEFAULT_X_GOOG_API_CLIENT,
-  clientMetadata: overrides.clientMetadata
+  clientMetadata: overrides.clientMetadata,
+  timeout: overrides.timeout || 30000
 });
 
 const mapAntigravity = (quotaResponse, categoryOverride) => {

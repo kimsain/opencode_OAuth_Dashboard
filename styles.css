@@ -106,7 +106,7 @@ body {
   background: var(--bg);
   min-height: 100vh;
   transition: background-color var(--duration-normal) var(--ease-standard), color var(--duration-normal) var(--ease-standard);
-  overflow-y: overlay;
+  overflow-y: auto;
   position: relative;
 }
 
@@ -236,9 +236,9 @@ body.dark .ambient {
 .app {
   position: relative;
   z-index: 1;
-  max-width: 1400px;
+  max-width: 87.5rem;
   margin: 0 auto;
-  padding: 40px 32px 64px;
+  padding: 2.5rem 2rem 4rem;
 }
 
 .top {
@@ -246,13 +246,13 @@ body.dark .ambient {
   flex-wrap: wrap;
   align-items: flex-start;
   justify-content: space-between;
-  gap: 24px;
-  margin-bottom: 32px;
-  padding: 24px 32px;
+  gap: 1.5rem;
+  margin-bottom: 2rem;
+  padding: 1.5rem 2rem;
   background: var(--glass-bg);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  border-radius: 24px;
+  backdrop-filter: blur(1rem);
+  -webkit-backdrop-filter: blur(1rem);
+  border-radius: 1.5rem;
   border: 1px solid var(--glass-border);
   box-shadow: var(--shadow-md);
   position: relative;
@@ -263,7 +263,7 @@ body.dark .ambient {
   content: "";
   position: absolute;
   inset: 0;
-  border-radius: 24px;
+  border-radius: 1.5rem;
   filter: url(#noiseFilter);
   opacity: 0.4;
   pointer-events: none;
@@ -521,7 +521,7 @@ body.dark .segmented {
   top: 4px;
   left: 4px;
   height: calc(100% - 8px);
-  width: 180px;
+  min-width: 40px;
   background: var(--ink);
   border-radius: 8px;
   transition: transform var(--duration-slow) var(--ease-elastic);
@@ -542,7 +542,8 @@ body.dark .selection-slider {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 180px;
+  flex: 1;
+  min-width: 80px;
   font-weight: 700;
   font-size: 15px;
   border-radius: 8px;
@@ -636,15 +637,15 @@ body:not(.dark) .segment.active {
 
 .card {
   background: var(--card);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  border-radius: 20px;
-  padding: 20px;
+  backdrop-filter: blur(0.75rem);
+  -webkit-backdrop-filter: blur(0.75rem);
+  border-radius: 1.25rem;
+  padding: 1.25rem;
   border: 1px solid var(--line);
   box-shadow: var(--shadow-sm);
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 0.875rem;
   transition: all var(--duration-slow) var(--ease-spring);
   animation: fadeUp var(--duration-entry) var(--ease-spring) both;
   animation-delay: calc(var(--index) * 100ms);

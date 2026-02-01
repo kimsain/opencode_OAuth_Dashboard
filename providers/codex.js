@@ -89,23 +89,31 @@ const refreshAccessToken = async (refreshToken) => {
     client_id: CLIENT_ID
   });
 
-  const response = await fetch(REFRESH_ENDPOINT, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/x-www-form-urlencoded"
-    },
-    body: params.toString()
-  });
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 30000);
 
-  if (!response.ok) {
-    throw new Error("Codex refresh token request failed");
+  try {
+    const response = await fetch(REFRESH_ENDPOINT, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/x-www-form-urlencoded"
+      },
+      body: params.toString(),
+      signal: controller.signal
+    });
+
+    if (!response.ok) {
+      throw new Error("Codex refresh token request failed");
+    }
+
+    return response.json();
+  } finally {
+    clearTimeout(timeoutId);
   }
-
-  return response.json();
 };
 
 const executeUsageRequest = (url, token, accountId, options = {}) => {
-  const { headers: providedHeaders, method: _method, ...rest } = options;
+  const { headers: providedHeaders, method: _method, timeout = 30000, ...rest } = options;
   const baseHeaders = {
     Authorization: `Bearer ${token}`
   };
@@ -118,11 +126,25 @@ const executeUsageRequest = (url, token, accountId, options = {}) => {
     ...baseHeaders
   };
 
-  return fetch(url, {
-    method: "GET",
-    headers: mergedHeaders,
-    ...rest
-  });
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeout);
+
+  // We return the promise but we need to ensure the timeout is cleared.
+  // This is a bit tricky if we just return the fetch call.
+  // I'll change it to async/await to ensure cleanup.
+  return (async () => {
+    try {
+      const response = await fetch(url, {
+        method: "GET",
+        headers: mergedHeaders,
+        signal: controller.signal,
+        ...rest
+      });
+      return response;
+    } finally {
+      clearTimeout(timeoutId);
+    }
+  })();
 };
 
 const shouldRefreshToken = (auth) => {
