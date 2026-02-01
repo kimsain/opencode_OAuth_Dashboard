@@ -1,6 +1,7 @@
 {
   "agentRoleMap": {
     "sisyphus": "Default orchestrator for planning, delegation, and execution.",
+    "hephaestus": "Autonomous deep worker for software engineering.",
     "atlas": "Plan executor that delegates to specialists instead of doing everything directly.",
     "oracle": "Read-only consultant for architecture, reviews, and debugging.",
     "librarian": "External research specialist for docs and OSS examples.",

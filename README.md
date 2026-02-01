@@ -31,6 +31,7 @@
 - **Auto-Refresh**: Background polling ensures data is always up-to-date without manual intervention.
 
 #### 2. Advanced Configuration Editor
+- **Agent Management**: Full support for the latest OpenCode agents including **Hephaestus** (Deep Engineering), **Sisyphus**, and **Librarian**.
 - **Atomic Management**: Safely edit `oh-my-opencode.json` with atomic write guarantees.
 - **Bulk Operations**: Swap AI models across all agent categories in a single click.
 - **Smart Resolution**: Automatically detects configuration paths following **XDG standards** across Windows and macOS/Linux.
@@ -108,6 +109,7 @@ Quota Pulse adheres to **XDG Base Directory** standards.
 - **자동 갱신**: 백그라운드 폴링을 통해 별도의 조작 없이 항상 최신 데이터를 유지합니다.
 
 #### 2. 고급 설정 편집기 (Configuration Editor)
+- **에이전트 관리**: **Hephaestus** (딥 엔지니어링), **Sisyphus**, **Librarian** 등 최신 OpenCode 에이전트를 완벽하게 지원합니다.
 - **원자적 관리 (Atomic Management)**: 데이터 손실 없이 `oh-my-opencode.json` 설정을 안전하게 수정합니다.
 - **일괄 작업 (Bulk Operations)**: 클릭 한 번으로 모든 에이전트 카테고리의 AI 모델을 교체할 수 있습니다.
 - **스마트 경로 탐색**: Windows 및 macOS/Linux 환경에서 **XDG 표준**을 따르는 설정 파일 경로를 자동으로 감지합니다.

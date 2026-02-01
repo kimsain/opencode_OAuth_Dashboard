@@ -1,6 +1,6 @@
 # Quota Pulse - Agent Guidelines (AGENTS.md)
 
-Updated: 2026-01-30
+Updated: 2026-02-01
 Project: Electron Desktop Dashboard for OAuth Usage & Quota Monitoring
 
 ## 📋 OVERVIEW

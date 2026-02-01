@@ -1,30 +1,34 @@
 # Quota Pulse - Provider Layer (AGENTS.md)
 
-Updated: 2026-01-29
+Updated: 2026-02-01
 
-## 🧩 PROVIDER ARCHITECTURE
+## 📋 OVERVIEW
+Unified adapter layer for abstracting diverse OAuth quota sources into a standardized dashboard contract.
 
-### OVERVIEW
-Providers implement an **Adapter Pattern** to abstract diverse quota/usage sources into a unified dashboard contract. They handle the "Discovery -> Auth -> Fetch -> Map" lifecycle, shielding the main process from API-specific complexities.
+## 🏗 STRUCTURE
+*   **Adapters** (`antigravity.js`, `codex.js`): Implements service-specific logic for the "Discovery -> Auth -> Fetch -> Map" lifecycle.
+*   **Security** (`credentials.js`): Safely discovers and redacts local auth tokens before they reach the Main process.
+*   **Normalizer** (`view_mapper.js`): Transforms raw provider payloads into sorted, dashboard-ready state items.
+*   **Orchestration** (`*_connect.js`): Handles local server callbacks for browser-based OAuth authentication flows.
+*   **Environment** (`paths.js`, `constants.js`): Resolves XDG-compliant storage paths and maintains global model definitions.
 
-### WHERE TO LOOK
+## 🔍 WHERE TO LOOK
 | Task | Location | Notes |
 |:---|:---|:---|
-| **Path Resolution** | `providers/paths.js` | Cross-platform path detection; must stay environment-agnostic. |
-| **Credential Discovery** | `providers/credentials.js` | Logic for finding local `auth.json` or Google SDK `accounts.json`. |
-| **API Mapping (Codex)** | `providers/codex.js` | Maps OpenAI usage windows into dashboard items. |
-| **API Mapping (Google)** | `providers/antigravity.js` | Maps Google Cloud quota fractions to items. |
-| **Data Normalization** | `providers/view_mapper.js` | Groups and sorts items for Model/Category views (title, subtitle decoration). |
-| **Shared Constants** | `providers/constants.js` | lists `BASE_ALLOWED_MODELS` and `ALLOWED_VARIANTS`. |
-| **OAuth Flows** | `providers/*_connect.js` | Local server handlers for browser-based OAuth connect flows. |
+| **API Mapping** | `providers/codex.js` | Main logic for OpenAI/Codex usage window calculation. |
+| **Quota Logic** | `providers/antigravity.js` | Handles Google Cloud quota fractions and project-level limits. |
+| **Token Discovery**| `providers/credentials.js` | Scans for `auth.json` or Google SDK credentials; performs redaction. |
+| **Data Shaping** | `providers/view_mapper.js` | Logic for grouping items by category or model type for the UI. |
+| **Path Resolution**| `providers/paths.js` | Platform-specific path detection (Windows %APPDATA% vs Unix ~/.config). |
 
-### CONVENTIONS
-*   **Stable Naming**: Provider keys in payloads must remain consistent (e.g., `codex`, `antigravity`).
-*   **Redaction Policy**: **Strict Privacy.** NEVER log, store, or return raw secrets (access/refresh tokens, auth codes, full callback URLs).
-*   **Atomic Responses**: Return lists of standardized items: `{ category, model, used, limit, resetAt, unit }`.
-*   **Errors**: Throw actionable `Error(message)`; main process aggregates these.
+## ⚖️ CONVENTIONS
+*   **Stable Naming**: Use keys `"codex"` and `"antigravity"` consistently for provider identification.
+*   **Redaction Policy**: **Strict Privacy.** Strip all secrets (tokens, auth codes) before data crosses the IPC boundary.
+*   **Atomic Responses**: Return self-contained arrays of standardized items: `{ category, model, used, limit, resetAt, unit }`.
+*   **Async-First**: All providers must return Promises; use `fs.promises` and `fetch` exclusively.
 
-### ANTI-PATTERNS
-*   **No Disk Persistence**: Providers must NOT write refreshed tokens or auth state back to disk. This app is a monitoring tool.
-*   **No Synchronous I/O**: Use `fs.promises` or `fetch` for all filesystem and network operations.
-*   **No UI Logic**: Providers map data for dashboard consumption; they do not handle presentation.
+## 🚫 ANTI-PATTERNS
+*   **No Disk Persistence**: Providers must NOT write secrets to disk. Refreshing is allowed in-memory only.
+*   **No Synchronous I/O**: Blocking the event loop in providers is strictly forbidden.
+*   **No UI Logic**: Do not include presentation code; return data that `renderer.js` can consume directly.
+*   **No Direct IPC**: Providers are called by `main.js`. Do not use `ipcMain` or `ipcRenderer` here.
